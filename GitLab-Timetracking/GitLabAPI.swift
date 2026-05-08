@@ -231,7 +231,8 @@ actor GitLabAPI {
             bodyItems: [
                 URLQueryItem(name: "title", value: title),
                 URLQueryItem(name: "description", value: description),
-                URLQueryItem(name: "assignee_id", value: assigneeID.map(String.init))
+                URLQueryItem(name: "assignee_id", value: assigneeID.map(String.init)),
+                URLQueryItem(name: "assignee_ids[]", value: assigneeID.map(String.init))
             ]
         )
 
