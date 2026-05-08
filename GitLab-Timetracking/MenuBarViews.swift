@@ -752,15 +752,21 @@ struct MenuBarContentView: View {
                                 }
                             } label: {
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(issue.references.short)
-                                        .font(.caption.weight(.semibold))
-                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 8) {
+                                        Text(issue.references.short)
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(.secondary)
+                                        Spacer(minLength: 0)
+                                        if let status = tracker.issueStatuses[issue.id] {
+                                            IssueStatusPill(status: status)
+                                        }
+                                    }
                                     Text(issue.title)
                                         .font(.body)
                                         .foregroundStyle(.primary)
                                         .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                 }
-                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(10)
                                 .background(Color(nsColor: .controlBackgroundColor))
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -1252,5 +1258,59 @@ struct MenuBarContentView: View {
             }
             .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
         }
+    }
+}
+
+private struct IssueStatusPill: View {
+    let status: GitLabIssueStatus
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(tintColor)
+                .frame(width: 6, height: 6)
+            Text(status.name)
+                .font(.caption2.weight(.medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(
+            Capsule()
+                .fill(tintColor.opacity(0.12))
+        )
+        .overlay(
+            Capsule()
+                .stroke(tintColor.opacity(0.35), lineWidth: 0.5)
+        )
+        .accessibilityLabel("Status: \(status.name)")
+    }
+
+    private var tintColor: Color {
+        Color(hex: status.colorHex) ?? .secondary
+    }
+}
+
+private extension Color {
+    init?(hex: String?) {
+        guard var hex else { return nil }
+        if hex.hasPrefix("#") { hex.removeFirst() }
+        guard hex.count == 6 || hex.count == 8 else { return nil }
+        var value: UInt64 = 0
+        guard Scanner(string: hex).scanHexInt64(&value) else { return nil }
+        let r, g, b, a: Double
+        if hex.count == 8 {
+            a = Double((value >> 24) & 0xff) / 255
+            r = Double((value >> 16) & 0xff) / 255
+            g = Double((value >> 8) & 0xff) / 255
+            b = Double(value & 0xff) / 255
+        } else {
+            a = 1
+            r = Double((value >> 16) & 0xff) / 255
+            g = Double((value >> 8) & 0xff) / 255
+            b = Double(value & 0xff) / 255
+        }
+        self = Color(.sRGB, red: r, green: g, blue: b, opacity: a)
     }
 }

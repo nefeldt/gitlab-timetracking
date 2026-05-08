@@ -41,6 +41,7 @@ final class TrackingManager {
     private(set) var lastRefreshAt: Date?
 
     var issues: [GitLabIssue] = []
+    var issueStatuses: [Int: GitLabIssueStatus] = [:]
     var activeSession: Session?
     var isLoading = false
     var errorMessage: String?
@@ -138,6 +139,7 @@ final class TrackingManager {
     func refreshIssues() async {
         guard authManager.settings.isConfigured else {
             issues = []
+            issueStatuses = [:]
             errorMessage = nil
             infoMessage = "Configure your GitLab instance and OAuth application in Settings."
             return
@@ -145,6 +147,7 @@ final class TrackingManager {
 
         guard authManager.isAuthenticated else {
             issues = []
+            issueStatuses = [:]
             errorMessage = nil
             infoMessage = "Connect your GitLab account in Settings."
             return
@@ -155,9 +158,17 @@ final class TrackingManager {
 
         do {
             let configuration = try await authManager.currentAuthorization()
-            issues = try await api.fetchAssignedIssues(configuration: configuration)
+            let fetchedIssues = try await api.fetchAssignedIssues(configuration: configuration)
+            issues = fetchedIssues
             lastRefreshAt = Date()
-            infoMessage = issues.isEmpty ? "No currently assigned open issues." : "Assigned issues updated."
+            infoMessage = fetchedIssues.isEmpty ? "No currently assigned open issues." : "Assigned issues updated."
+
+            let ids = fetchedIssues.map(\.id)
+            if let statuses = try? await api.fetchIssueStatuses(issueIDs: ids, configuration: configuration) {
+                issueStatuses = statuses
+            } else {
+                issueStatuses = [:]
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -297,6 +308,7 @@ final class TrackingManager {
         checkpointTask?.cancel()
         checkpointTask = nil
         issues = []
+        issueStatuses = [:]
         errorMessage = nil
         activeSession = nil
         sessionStore.clear()

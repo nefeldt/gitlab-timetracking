@@ -44,6 +44,12 @@ struct GitLabIssue: Codable, Identifiable, Hashable {
     }
 }
 
+struct GitLabIssueStatus: Hashable {
+    let name: String
+    let colorHex: String?
+    let iconName: String?
+}
+
 struct GitLabUser: Codable, Hashable {
     let id: Int
     let username: String
@@ -108,6 +114,15 @@ struct GitLabCreatedIssue: Codable, Hashable {
         case webURL = "web_url"
         case references
     }
+}
+
+struct GraphQLResponse<Payload: Decodable>: Decodable {
+    let data: Payload?
+    let errors: [GraphQLErrorMessage]?
+}
+
+struct GraphQLErrorMessage: Decodable {
+    let message: String
 }
 
 enum GitLabAPIError: LocalizedError {
@@ -337,6 +352,123 @@ actor GitLabAPI {
 
         let (data, response) = try await session.data(for: request)
         try validate(response: response, data: data)
+    }
+
+    func fetchIssueStatuses(
+        issueIDs: [Int],
+        configuration: AuthorizedGitLabConfiguration
+    ) async throws -> [Int: GitLabIssueStatus] {
+        guard !issueIDs.isEmpty else { return [:] }
+
+        var result: [Int: GitLabIssueStatus] = [:]
+        let chunkSize = 10
+
+        for chunk in stride(from: 0, to: issueIDs.count, by: chunkSize).map({ start in
+            Array(issueIDs[start..<min(start + chunkSize, issueIDs.count)])
+        }) {
+            let aliased = chunk.map { id in
+                "i_\(id): workItem(id: \"gid://gitlab/WorkItem/\(id)\") { ...statusFields }"
+            }.joined(separator: "\n")
+
+            let query = """
+            query {
+            \(aliased)
+            }
+            fragment statusFields on WorkItem {
+              widgets {
+                ... on WorkItemWidgetStatus {
+                  status { name color iconName }
+                }
+              }
+            }
+            """
+
+            let (rawData, rawResponse) = try await postGraphQL(query: query, configuration: configuration)
+            try validate(response: rawResponse, data: rawData)
+
+            let response: GraphQLResponse<[String: IssueStatusNode?]>
+            do {
+                response = try decoder.decode(GraphQLResponse<[String: IssueStatusNode?]>.self, from: rawData)
+            } catch {
+                logGraphQLFailure(reason: "decode failed: \(error)", body: rawData)
+                continue
+            }
+
+            if let errors = response.errors, !errors.isEmpty {
+                logGraphQLFailure(reason: "errors: \(errors.map(\.message).joined(separator: "; "))", body: rawData)
+            }
+
+            guard let nodes = response.data else {
+                logGraphQLFailure(reason: "no data field", body: rawData)
+                continue
+            }
+
+            if nodes.allSatisfy({ $0.value?.extractedStatus() == nil }) {
+                logGraphQLFailure(reason: "no status widgets in response", body: rawData)
+            }
+
+            for (alias, node) in nodes {
+                guard let node, let status = node.extractedStatus() else { continue }
+                guard alias.hasPrefix("i_"), let id = Int(alias.dropFirst(2)) else { continue }
+                result[id] = status
+            }
+        }
+
+        return result
+    }
+
+    private func logGraphQLFailure(reason: String, body: Data) {
+        let preview = String(data: body.prefix(800), encoding: .utf8) ?? "<non-utf8>"
+        NSLog("[GitLabAPI] status fetch %@. body: %@", reason, preview)
+    }
+
+    private func postGraphQL(
+        query: String,
+        configuration: AuthorizedGitLabConfiguration
+    ) async throws -> (Data, URLResponse) {
+        var components = URLComponents(url: configuration.baseURL, resolvingAgainstBaseURL: false)
+        components?.path = configuration.baseURL.path + "/api/graphql"
+
+        guard let url = components?.url else {
+            throw GitLabAPIError.missingConfiguration
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(configuration.accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(GraphQLRequestBody(query: query))
+
+        return try await session.data(for: request)
+    }
+
+    private struct GraphQLRequestBody: Encodable {
+        let query: String
+    }
+
+    private struct IssueStatusNode: Decodable {
+        let widgets: [Widget]?
+
+        struct Widget: Decodable {
+            let status: StatusValue?
+        }
+
+        struct StatusValue: Decodable {
+            let name: String
+            let color: String?
+            let iconName: String?
+        }
+
+        func extractedStatus() -> GitLabIssueStatus? {
+            guard let widgets else { return nil }
+            for widget in widgets {
+                if let status = widget.status {
+                    return GitLabIssueStatus(name: status.name, colorHex: status.color, iconName: status.iconName)
+                }
+            }
+            return nil
+        }
     }
 
     private func makeRequest(
