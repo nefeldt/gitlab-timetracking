@@ -756,9 +756,16 @@ struct MenuBarContentView: View {
                                         Text(issue.references.short)
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.secondary)
-                                        Spacer(minLength: 0)
+                                            .fixedSize()
+                                        if let parent = tracker.issueParents[issue.id] {
+                                            ParentIssueLink(parent: parent) {
+                                                openURL(parent.webURL)
+                                            }
+                                        }
+                                        Spacer(minLength: 8)
                                         if let status = tracker.issueStatuses[issue.id] {
                                             IssueStatusPill(status: status)
+                                                .fixedSize()
                                         }
                                     }
                                     Text(issue.title)
@@ -1258,6 +1265,24 @@ struct MenuBarContentView: View {
             }
             .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
         }
+    }
+}
+
+private struct ParentIssueLink: View {
+    let parent: GitLabIssueParent
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(parent.title)
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .buttonStyle(.plain)
+        .help("Parent: \(parent.title)")
+        .accessibilityLabel("Open parent issue: \(parent.title)")
     }
 }
 

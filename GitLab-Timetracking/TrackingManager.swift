@@ -42,6 +42,7 @@ final class TrackingManager {
 
     var issues: [GitLabIssue] = []
     var issueStatuses: [Int: GitLabIssueStatus] = [:]
+    var issueParents: [Int: GitLabIssueParent] = [:]
     var activeSession: Session?
     var isLoading = false
     var errorMessage: String?
@@ -140,6 +141,7 @@ final class TrackingManager {
         guard authManager.settings.isConfigured else {
             issues = []
             issueStatuses = [:]
+            issueParents = [:]
             errorMessage = nil
             infoMessage = "Configure your GitLab instance and OAuth application in Settings."
             return
@@ -148,6 +150,7 @@ final class TrackingManager {
         guard authManager.isAuthenticated else {
             issues = []
             issueStatuses = [:]
+            issueParents = [:]
             errorMessage = nil
             infoMessage = "Connect your GitLab account in Settings."
             return
@@ -164,10 +167,12 @@ final class TrackingManager {
             infoMessage = fetchedIssues.isEmpty ? "No currently assigned open issues." : "Assigned issues updated."
 
             let ids = fetchedIssues.map(\.id)
-            if let statuses = try? await api.fetchIssueStatuses(issueIDs: ids, configuration: configuration) {
-                issueStatuses = statuses
+            if let info = try? await api.fetchIssueWorkItemInfo(issueIDs: ids, configuration: configuration) {
+                issueStatuses = info.compactMapValues(\.status)
+                issueParents = info.compactMapValues(\.parent)
             } else {
                 issueStatuses = [:]
+                issueParents = [:]
             }
         } catch {
             errorMessage = error.localizedDescription
@@ -309,6 +314,7 @@ final class TrackingManager {
         checkpointTask = nil
         issues = []
         issueStatuses = [:]
+        issueParents = [:]
         errorMessage = nil
         activeSession = nil
         sessionStore.clear()

@@ -50,6 +50,17 @@ struct GitLabIssueStatus: Hashable {
     let iconName: String?
 }
 
+struct GitLabIssueParent: Hashable {
+    let id: Int
+    let title: String
+    let webURL: URL
+}
+
+struct GitLabIssueWorkItemInfo: Hashable {
+    let status: GitLabIssueStatus?
+    let parent: GitLabIssueParent?
+}
+
 struct GitLabUser: Codable, Hashable {
     let id: Int
     let username: String
@@ -354,30 +365,33 @@ actor GitLabAPI {
         try validate(response: response, data: data)
     }
 
-    func fetchIssueStatuses(
+    func fetchIssueWorkItemInfo(
         issueIDs: [Int],
         configuration: AuthorizedGitLabConfiguration
-    ) async throws -> [Int: GitLabIssueStatus] {
+    ) async throws -> [Int: GitLabIssueWorkItemInfo] {
         guard !issueIDs.isEmpty else { return [:] }
 
-        var result: [Int: GitLabIssueStatus] = [:]
+        var result: [Int: GitLabIssueWorkItemInfo] = [:]
         let chunkSize = 10
 
         for chunk in stride(from: 0, to: issueIDs.count, by: chunkSize).map({ start in
             Array(issueIDs[start..<min(start + chunkSize, issueIDs.count)])
         }) {
             let aliased = chunk.map { id in
-                "i_\(id): workItem(id: \"gid://gitlab/WorkItem/\(id)\") { ...statusFields }"
+                "i_\(id): workItem(id: \"gid://gitlab/WorkItem/\(id)\") { ...workItemFields }"
             }.joined(separator: "\n")
 
             let query = """
             query {
             \(aliased)
             }
-            fragment statusFields on WorkItem {
+            fragment workItemFields on WorkItem {
               widgets {
                 ... on WorkItemWidgetStatus {
                   status { name color iconName }
+                }
+                ... on WorkItemWidgetHierarchy {
+                  parent { id title webUrl }
                 }
               }
             }
@@ -386,9 +400,9 @@ actor GitLabAPI {
             let (rawData, rawResponse) = try await postGraphQL(query: query, configuration: configuration)
             try validate(response: rawResponse, data: rawData)
 
-            let response: GraphQLResponse<[String: IssueStatusNode?]>
+            let response: GraphQLResponse<[String: IssueWorkItemInfoNode?]>
             do {
-                response = try decoder.decode(GraphQLResponse<[String: IssueStatusNode?]>.self, from: rawData)
+                response = try decoder.decode(GraphQLResponse<[String: IssueWorkItemInfoNode?]>.self, from: rawData)
             } catch {
                 logGraphQLFailure(reason: "decode failed: \(error)", body: rawData)
                 continue
@@ -403,14 +417,14 @@ actor GitLabAPI {
                 continue
             }
 
-            if nodes.allSatisfy({ $0.value?.extractedStatus() == nil }) {
-                logGraphQLFailure(reason: "no status widgets in response", body: rawData)
+            if nodes.allSatisfy({ $0.value?.extracted() == nil }) {
+                logGraphQLFailure(reason: "no work item widgets in response", body: rawData)
             }
 
             for (alias, node) in nodes {
-                guard let node, let status = node.extractedStatus() else { continue }
+                guard let node, let info = node.extracted() else { continue }
                 guard alias.hasPrefix("i_"), let id = Int(alias.dropFirst(2)) else { continue }
-                result[id] = status
+                result[id] = info
             }
         }
 
@@ -419,7 +433,7 @@ actor GitLabAPI {
 
     private func logGraphQLFailure(reason: String, body: Data) {
         let preview = String(data: body.prefix(800), encoding: .utf8) ?? "<non-utf8>"
-        NSLog("[GitLabAPI] status fetch %@. body: %@", reason, preview)
+        NSLog("[GitLabAPI] work item fetch %@. body: %@", reason, preview)
     }
 
     private func postGraphQL(
@@ -447,11 +461,12 @@ actor GitLabAPI {
         let query: String
     }
 
-    private struct IssueStatusNode: Decodable {
+    private struct IssueWorkItemInfoNode: Decodable {
         let widgets: [Widget]?
 
         struct Widget: Decodable {
             let status: StatusValue?
+            let parent: ParentValue?
         }
 
         struct StatusValue: Decodable {
@@ -460,14 +475,34 @@ actor GitLabAPI {
             let iconName: String?
         }
 
-        func extractedStatus() -> GitLabIssueStatus? {
+        struct ParentValue: Decodable {
+            let id: String
+            let title: String
+            let webUrl: String
+        }
+
+        func extracted() -> GitLabIssueWorkItemInfo? {
             guard let widgets else { return nil }
+            var status: GitLabIssueStatus?
+            var parent: GitLabIssueParent?
             for widget in widgets {
-                if let status = widget.status {
-                    return GitLabIssueStatus(name: status.name, colorHex: status.color, iconName: status.iconName)
+                if let value = widget.status, status == nil {
+                    status = GitLabIssueStatus(name: value.name, colorHex: value.color, iconName: value.iconName)
+                }
+                if let value = widget.parent,
+                   parent == nil,
+                   let url = URL(string: value.webUrl),
+                   let parentID = Self.parseWorkItemID(value.id) {
+                    parent = GitLabIssueParent(id: parentID, title: value.title, webURL: url)
                 }
             }
-            return nil
+            if status == nil, parent == nil { return nil }
+            return GitLabIssueWorkItemInfo(status: status, parent: parent)
+        }
+
+        private static func parseWorkItemID(_ gid: String) -> Int? {
+            guard let last = gid.split(separator: "/").last else { return nil }
+            return Int(last)
         }
     }
 
