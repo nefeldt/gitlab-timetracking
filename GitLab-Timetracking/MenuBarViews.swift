@@ -757,13 +757,13 @@ struct MenuBarContentView: View {
                                             .font(.caption.weight(.semibold))
                                             .foregroundStyle(.secondary)
                                             .fixedSize()
-                                        if let parent = tracker.issueParents[issue.id] {
+                                        if settings.showParentIssueOnCard, let parent = tracker.issueParents[issue.id] {
                                             ParentIssueLink(parent: parent) {
                                                 openURL(parent.webURL)
                                             }
                                         }
                                         Spacer(minLength: 8)
-                                        if let status = tracker.issueStatuses[issue.id] {
+                                        if settings.showStatusPillOnCard, let status = tracker.issueStatuses[issue.id] {
                                             IssueStatusPill(status: status)
                                                 .fixedSize()
                                         }
