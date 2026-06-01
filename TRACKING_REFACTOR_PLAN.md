@@ -257,14 +257,19 @@ Extend `TrackingCalculationTests` (logic stays pure/testable):
 
 ## 7. Rollout phases
 
-1. **Refactor to the segment model** behind the existing behavior (no UX change
-   yet): new `Session`, pure helpers, persistence + migration, tests green.
-2. **Non‑blocking checkpoint** (§4.1): drop the pause, update UI + notification
-   copy.
-3. **Away detection + reconciliation** (§4.2–4.3): `ActivityMonitor`, gap
-   banners, notifications.
-4. **Network auto‑retry** (§4.4): reachability sweep + backoff.
-5. **Docs**: fix `AGENTS.md`, finalize booking cadence (§4.5).
+Note (revised during implementation): the originally proposed "segment model
+behind existing behavior" first phase would have built a representation of the
+checkpoint *pause* only to delete it immediately in the next phase. Instead the
+model work is folded into the phases that actually consume it.
+
+1. **Non‑blocking checkpoint** (§4.1): drop the `awaitingContinuation` pause,
+   collapse the three stop/book paths into one, update UI + notification copy,
+   update tests. Highest‑value fix (stops losing work time).
+2. **Away detection + reconciliation** (§4.2–4.3): `ActivityMonitor`, the
+   uncertain‑gap model (introduced here, where it is used), gap banners, and
+   reconciliation notifications + persistence/migration.
+3. **Network auto‑retry** (§4.4): reachability sweep + backoff.
+4. **Docs**: fix `AGENTS.md`, finalize booking cadence (§4.5).
 
 Each phase is independently shippable and testable.
 

@@ -9,8 +9,11 @@ struct PersistedSession: Codable {
     let issue: GitLabIssue
     let startedAt: Date
     let lastCheckpointAt: Date
-    let awaitingContinuation: Bool
     let accumulatedMinutes: Int
+
+    // `awaitingContinuation` was removed when check-ins stopped pausing
+    // tracking. Older persisted payloads may still contain the key; Codable
+    // ignores it on decode, so no explicit migration is required.
 }
 
 struct SessionStore {

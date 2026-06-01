@@ -43,15 +43,7 @@ struct MenuBarLabelView: View {
     }
 
     private var statusSymbolName: String {
-        if tracker.isTracking {
-            return "play.circle.fill"
-        }
-
-        if tracker.activeIssue != nil {
-            return "bell.badge.fill"
-        }
-
-        return "circle.fill"
+        tracker.isTracking ? "play.circle.fill" : "circle.fill"
     }
 
     private var statusLabel: String {
@@ -74,15 +66,7 @@ struct MenuBarLabelView: View {
     }
 
     private var statusColor: Color {
-        if tracker.isTracking {
-            return AppColors.trackingGreen
-        }
-
-        if tracker.activeIssue != nil {
-            return AppColors.checkpointOrange
-        }
-
-        return .secondary
+        tracker.isTracking ? AppColors.trackingGreen : .secondary
     }
 }
 
@@ -243,9 +227,9 @@ struct MenuBarContentView: View {
     @ViewBuilder
     private func activeSection(session: TrackingManager.Session) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label(session.awaitingContinuation ? "Awaiting Confirmation" : "Currently Tracking", systemImage: session.awaitingContinuation ? "bell.badge.fill" : "play.circle.fill")
+            Label("Currently Tracking", systemImage: "play.circle.fill")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(session.awaitingContinuation ? AppColors.checkpointOrange : AppColors.trackingGreen)
+                .foregroundStyle(AppColors.trackingGreen)
 
             Button {
                 openURL(session.issue.webURL)
@@ -258,21 +242,12 @@ struct MenuBarContentView: View {
                         .font(.body)
                         .multilineTextAlignment(.leading)
                     HStack(spacing: 12) {
-                        if session.awaitingContinuation {
-                            Label("Tracked: \(tracker.formattedDuration(seconds: session.accumulatedMinutes * 60))", systemImage: "clock")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Label("Paused: \(tracker.formattedDuration(seconds: tracker.secondsSinceLastCheckpoint(for: session)))", systemImage: "pause.circle")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        } else {
-                            Label("Tracked: \(tracker.formattedDuration(seconds: tracker.defaultStopSeconds(for: session)))", systemImage: "timer")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Label(totalTrackedLabel(issue: session.issue), systemImage: "clock.badge.checkmark")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
+                        Label("Tracked: \(tracker.formattedDuration(seconds: tracker.defaultStopSeconds(for: session)))", systemImage: "timer")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Label(totalTrackedLabel(issue: session.issue), systemImage: "clock.badge.checkmark")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -286,24 +261,11 @@ struct MenuBarContentView: View {
             }
             .buttonStyle(.plain)
 
-            let plannedWithCurrent = tracker.plannedBookingMinutes(for: session, includingCurrentCycle: true)
-            let plannedAccumulated = tracker.plannedBookingMinutes(for: session, includingCurrentCycle: false)
+            let plannedWithCurrent = tracker.plannedBookingMinutes(for: session)
 
             HStack {
-                if session.awaitingContinuation {
-                    Button("Continue") {
-                        tracker.continueAfterCheckpoint()
-                    }
-                    Button("Stop & Book \(DurationFormatter.format(minutes: plannedWithCurrent)) (all)") {
-                        tracker.finishAwaitingSessionIncludingElapsed()
-                    }
-                    Button("Stop & Book \(DurationFormatter.format(minutes: plannedAccumulated))") {
-                        tracker.finishAwaitingSession()
-                    }
-                } else {
-                    Button("Stop & Book \(DurationFormatter.format(minutes: plannedWithCurrent))") {
-                        tracker.stopTracking()
-                    }
+                Button("Stop & Book \(DurationFormatter.format(minutes: plannedWithCurrent))") {
+                    tracker.stopTracking()
                 }
                 Spacer()
             }
@@ -701,11 +663,11 @@ struct MenuBarContentView: View {
     }
 
     private func activeSessionBackgroundColor(session: TrackingManager.Session) -> Color {
-        (session.awaitingContinuation ? AppColors.checkpointOrange : AppColors.trackingGreen).opacity(0.12)
+        AppColors.trackingGreen.opacity(0.12)
     }
 
     private func activeSessionBorderColor(session: TrackingManager.Session) -> Color {
-        (session.awaitingContinuation ? AppColors.checkpointOrange : AppColors.trackingGreen).opacity(0.35)
+        AppColors.trackingGreen.opacity(0.35)
     }
 
     private func totalTrackedLabel(issue: GitLabIssue) -> String {
@@ -802,9 +764,7 @@ struct MenuBarContentView: View {
 
     private func switchConfirmationOverlay(newIssue: GitLabIssue) -> some View {
         let session = tracker.activeSession!
-        let accumulated = session.accumulatedMinutes
-        let partial = max(1, Int(Date().timeIntervalSince(session.lastCheckpointAt) / 60))
-        let total = accumulated + partial
+        let total = tracker.plannedBookingMinutes(for: session)
 
         return ZStack {
             Color.black.opacity(0.2)
@@ -819,20 +779,8 @@ struct MenuBarContentView: View {
                     .foregroundStyle(.secondary)
 
                 VStack(spacing: 8) {
-                    if accumulated > 0 {
-                        Button {
-                            tracker.finishAwaitingSession()
-                            tracker.startTracking(issue: newIssue)
-                            issuePendingSwitchConfirmation = nil
-                        } label: {
-                            Text("Book \(DurationFormatter.format(minutes: accumulated)) & Switch")
-                                .frame(maxWidth: .infinity)
-                        }
-                        .controlSize(.large)
-                    }
-
                     Button {
-                        tracker.finishAwaitingSessionIncludingElapsed()
+                        tracker.stopTracking()
                         tracker.startTracking(issue: newIssue)
                         issuePendingSwitchConfirmation = nil
                     } label: {
@@ -1020,9 +968,9 @@ struct MenuBarContentView: View {
 
     private func historyInProgressCard(session: TrackingManager.Session) -> some View {
         let plannedSeconds = tracker.defaultStopSeconds(for: session)
-        let tint = session.awaitingContinuation ? AppColors.checkpointOrange : AppColors.trackingGreen
-        let statusLabel = session.awaitingContinuation ? "Awaiting Confirmation" : "Currently Tracking"
-        let statusIcon = session.awaitingContinuation ? "bell.badge.fill" : "play.circle.fill"
+        let tint = AppColors.trackingGreen
+        let statusLabel = "Currently Tracking"
+        let statusIcon = "play.circle.fill"
 
         return VStack(alignment: .leading, spacing: 6) {
             HStack {

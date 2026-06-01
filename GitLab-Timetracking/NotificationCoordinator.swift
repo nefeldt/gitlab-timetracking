@@ -14,15 +14,15 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
 
     static let continueActionID = "CONTINUE_TRACKING"
     static let stopActionID = "STOP_TRACKING"
-    static let stopAndBookAllActionID = "STOP_AND_BOOK_ALL"
     static let categoryID = "TRACKING_CHECKPOINT"
     static let notificationID = "TRACKING_CHECKPOINT_ACTIVE"
 
     private static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "GitLabTimetracking", category: "Notifications")
 
+    /// Invoked when the user acknowledges the check-in ("keep going"). Tracking
+    /// is never paused, so this only dismisses the outstanding nudge.
     var onContinue: (() -> Void)?
     var onStop: (() -> Void)?
-    var onStopAndBookAll: (() -> Void)?
     private var reminderTask: Task<Void, Never>?
     private var alertSound: NSSound?
 
@@ -32,22 +32,17 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
 
         let continueAction = UNNotificationAction(
             identifier: Self.continueActionID,
-            title: "Continue",
+            title: "Keep Tracking",
             options: []
         )
         let stopAction = UNNotificationAction(
             identifier: Self.stopActionID,
-            title: "Stop",
-            options: [.destructive]
-        )
-        let stopAndBookAllAction = UNNotificationAction(
-            identifier: Self.stopAndBookAllActionID,
-            title: "Stop & Book All",
+            title: "Stop & Book",
             options: [.destructive]
         )
         let category = UNNotificationCategory(
             identifier: Self.categoryID,
-            actions: [continueAction, stopAndBookAllAction, stopAction],
+            actions: [continueAction, stopAction],
             intentIdentifiers: []
         )
 
@@ -65,7 +60,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         let content = UNMutableNotificationContent()
         content.title = issue.references.short
         content.subtitle = issue.title
-        content.body = "\(checkpointMinutes) more minutes tracked. Continue or stop to book?"
+        content.body = "Still tracking — \(checkpointMinutes) more minutes counted. Keep going or stop to book."
         content.sound = .default
         content.interruptionLevel = .timeSensitive
         content.categoryIdentifier = Self.categoryID
@@ -124,8 +119,6 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
                 onContinue?()
             case Self.stopActionID:
                 onStop?()
-            case Self.stopAndBookAllActionID:
-                onStopAndBookAll?()
             default:
                 break
             }
