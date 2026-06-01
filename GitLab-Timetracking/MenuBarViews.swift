@@ -30,7 +30,11 @@ struct MenuBarLabelView: View {
                 .font(.system(size: 20, weight: .bold))
             Text(statusLabel)
         }
-        .task {
+        .task(id: shouldTick) {
+            // Only advance the clock while a running session's elapsed time is
+            // actually shown. Otherwise @Observable handles the rare updates and
+            // the app stays idle instead of waking every second all day.
+            guard shouldTick else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 tick &+= 1
@@ -40,6 +44,14 @@ struct MenuBarLabelView: View {
             openSettings()
             NSApp.activate()
         }
+    }
+
+    /// The menu-bar label only needs per-second refreshes when a running
+    /// session's elapsed time is on screen (not while idle or paused/away).
+    private var shouldTick: Bool {
+        settings.showTrackedTimeInMenuBar
+            && tracker.isTracking
+            && tracker.activeSession?.awaySince == nil
     }
 
     private var statusSymbolName: String {
@@ -203,24 +215,28 @@ struct MenuBarContentView: View {
 
     @ViewBuilder
     private var trackingOverviewSection: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { _ in
-            if let session = tracker.activeSession {
-                activeSection(session: session)
-            } else {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("No Active Tracking", systemImage: "pause.circle")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-
-                    Text("Select an assigned issue below to start tracking time.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        // Only drive a per-second timeline while a session is active; the idle
+        // placeholder is static and doesn't need to re-render every second.
+        if tracker.activeSession != nil {
+            TimelineView(.periodic(from: .now, by: 1)) { _ in
+                if let session = tracker.activeSession {
+                    activeSection(session: session)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(12)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
             }
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("No Active Tracking", systemImage: "pause.circle")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                Text("Select an assigned issue below to start tracking time.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
         }
     }
 
@@ -311,9 +327,14 @@ struct MenuBarContentView: View {
         }
     }
 
-    private func awayGapRange(_ gap: AwayGap) -> String {
+    private static let awayGapTimeFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private func awayGapRange(_ gap: AwayGap) -> String {
+        let formatter = Self.awayGapTimeFormatter
         return "\(formatter.string(from: gap.start))–\(formatter.string(from: gap.end))"
     }
 

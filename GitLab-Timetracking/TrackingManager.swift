@@ -711,33 +711,12 @@ final class TrackingManager {
                 issuesByID[issue.id] = issue
             }
             let snapshotIssues = Array(issuesByID.values)
-            var remoteEntries: [BookingHistoryEntry] = []
-
-            for issue in snapshotIssues {
-                let notes = try await api.fetchIssueNotes(projectID: issue.projectID, issueIID: issue.iid, configuration: configuration)
-                for note in notes where note.system && note.author.id == currentUserID {
-                    if let cutoff, note.createdAt < cutoff {
-                        continue
-                    }
-
-                    guard let minutes = GitLabTimeNoteParser.addedMinutes(from: note.body), minutes > 0 else {
-                        continue
-                    }
-
-                    remoteEntries.append(
-                        BookingHistoryEntry(
-                            id: UUID(),
-                            issueID: issue.id,
-                            issueReference: issue.references.short,
-                            issueTitle: issue.title,
-                            issueWebURL: issue.webURL,
-                            minutes: minutes,
-                            bookedAt: note.createdAt,
-                            gitLabEventID: note.id
-                        )
-                    )
-                }
-            }
+            let remoteEntries = try await fetchRemoteBookingEntries(
+                for: snapshotIssues,
+                currentUserID: currentUserID,
+                cutoff: cutoff,
+                configuration: configuration
+            )
 
             bookingHistory = historyStore.mergeRemote(remoteEntries)
             lastHistorySyncAt = Date()
@@ -748,6 +727,63 @@ final class TrackingManager {
         }
 
         isSyncingHistory = false
+    }
+
+    /// Fetches each issue's time-spent notes with bounded concurrency instead of
+    /// one round trip at a time, so a large sync isn't a long sequential chain.
+    /// The fetch and note parsing run off the main actor inside the API actor.
+    private func fetchRemoteBookingEntries(
+        for issues: [GitLabIssue],
+        currentUserID: Int,
+        cutoff: Date?,
+        configuration: AuthorizedGitLabConfiguration
+    ) async throws -> [BookingHistoryEntry] {
+        guard !issues.isEmpty else { return [] }
+        let api = self.api
+        let maxConcurrent = min(6, issues.count)
+
+        return try await withThrowingTaskGroup(of: [BookingHistoryEntry].self) { group in
+            func addTask(for issue: GitLabIssue) {
+                group.addTask {
+                    let notes = try await api.fetchIssueNotes(
+                        projectID: issue.projectID,
+                        issueIID: issue.iid,
+                        configuration: configuration
+                    )
+                    return notes.compactMap { note -> BookingHistoryEntry? in
+                        guard note.system, note.author.id == currentUserID else { return nil }
+                        if let cutoff, note.createdAt < cutoff { return nil }
+                        guard let minutes = GitLabTimeNoteParser.addedMinutes(from: note.body), minutes > 0 else { return nil }
+                        return BookingHistoryEntry(
+                            id: UUID(),
+                            issueID: issue.id,
+                            issueReference: issue.references.short,
+                            issueTitle: issue.title,
+                            issueWebURL: issue.webURL,
+                            minutes: minutes,
+                            bookedAt: note.createdAt,
+                            gitLabEventID: note.id
+                        )
+                    }
+                }
+            }
+
+            var nextIndex = 0
+            while nextIndex < maxConcurrent {
+                addTask(for: issues[nextIndex])
+                nextIndex += 1
+            }
+
+            var entries: [BookingHistoryEntry] = []
+            while let result = try await group.next() {
+                entries.append(contentsOf: result)
+                if nextIndex < issues.count {
+                    addTask(for: issues[nextIndex])
+                    nextIndex += 1
+                }
+            }
+            return entries
+        }
     }
 
     private func isSyncCoveredBy(existingCutoff: Date?, newCutoff: Date?) -> Bool {
