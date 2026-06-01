@@ -7,7 +7,8 @@ This repository contains a macOS menu bar app for lightweight GitLab issue track
 - The app runs as a menu bar-only app.
 - It shows currently assigned open GitLab issues for the authenticated user.
 - Clicking an issue starts local time tracking.
-- Every 20 minutes, the app books 20 minutes to the GitLab issue and asks whether tracking should continue.
+- Tracking runs continuously; every 20 minutes (configurable) it posts a non-blocking check-in notification but keeps counting time.
+- Tracked time is booked to the GitLab issue when the user stops — not at every checkpoint.
 - The app can create a new issue in a selected GitLab project.
 - After creating an issue, the create section collapses and the assigned issue list refreshes.
 
@@ -41,12 +42,12 @@ This repository contains a macOS menu bar app for lightweight GitLab issue track
 ### Time Tracking
 
 - Starting an issue creates an active local tracking session.
-- Tracking state persists across app restarts.
-- If the app restarts during a session, the session is restored.
-- On each 20-minute checkpoint:
-  - 20 minutes are added to the GitLab issue
-  - a notification asks whether to continue
-- Stopping before the next checkpoint books the elapsed minutes.
+- Tracking state (including away gaps) persists across app restarts and is restored on relaunch.
+- **Non-blocking check-ins:** every checkpoint (default 20 min) the app posts a check-in notification and keeps tracking. There is no pause — missing the notification never loses time. The notification offers *Keep Tracking* or *Stop & Book*.
+- **Booking happens on stop**, not per checkpoint. The booked total is: confirmed time + the in-progress interval + any away periods the user chose to count.
+- **Away detection and reconciliation:** `ActivityMonitor` watches system/display sleep, screen lock/unlock, and fast user switching. When the machine becomes unavailable the clock freezes; on return tracking resumes automatically. A real absence (≥ 90 s) becomes an undecided `AwayGap` the user resolves as *Count as Work* or *Don't Count* — via a notification and an in-card banner that stays open until resolved. Sub-90 s blips count as continuous work. App downtime between launches is treated the same way.
+- **Network resilience:** if a booking fails for a transient reason (offline/VPN down, 5xx, 429, auth blip) it is saved as pending and retried automatically with exponential backoff, and immediately when the network returns or the machine wakes. Permanent failures (e.g. 403/404) stay pending for manual retry.
+- See `TRACKING_REFACTOR_PLAN.md` for the full design and rationale.
 
 ### Project Selection and Issue Creation
 
@@ -70,8 +71,9 @@ This repository contains a macOS menu bar app for lightweight GitLab issue track
 - `My GitLab Timetracking/TrackingManager.swift`
   - assigned issue refresh
   - issue ordering
-  - session lifecycle
-  - time booking
+  - session lifecycle (non-blocking check-ins)
+  - away-gap accounting and reconciliation
+  - time booking + automatic retry sweep
 - `My GitLab Timetracking/ProjectManager.swift`
   - project loading and caching
   - selected project state
@@ -90,10 +92,15 @@ This repository contains a macOS menu bar app for lightweight GitLab issue track
   - settings UI
 - `My GitLab Timetracking/SessionStore.swift`
   - persisted active tracking session
+  - `AwayGap` model (undecided / counted / discarded)
+- `My GitLab Timetracking/ActivityMonitor.swift`
+  - sleep / display-sleep / lock / user-switch → away/return events
+- `My GitLab Timetracking/NetworkMonitor.swift`
+  - reachability (NWPathMonitor) for automatic booking retry
 - `My GitLab Timetracking/ProjectCacheStore.swift`
   - cached GitLab projects
 - `My GitLab Timetracking/NotificationCoordinator.swift`
-  - checkpoint notifications
+  - check-in notifications and away-gap reconciliation prompts
 - `My GitLab Timetracking/OAuthCallbackServer.swift`
   - local OAuth callback listener
 

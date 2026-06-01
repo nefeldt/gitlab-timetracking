@@ -277,11 +277,19 @@ Each phase is independently shippable and testable.
 
 ## 8. Open questions for the maintainer
 
-1. **Booking cadence** — keep book‑on‑stop (recommended) or move to per‑
-   checkpoint incremental booking?
-2. **Idle threshold** — what counts as "away" without a lock (e.g. 5 min of no
-   input)? And the short‑lock ignore threshold (proposed 90 s)?
-3. **Default for unresolved gaps** at stop time — exclude (recommended,
-   conservative) or prompt one last time before booking?
-4. **Idle without lock** — should pure input‑inactivity create uncertain gaps,
-   or only real sleep/lock/user‑switch events?
+Decisions taken during implementation (Phases 1–4 are now on this branch):
+
+1. **Booking cadence** — kept **book‑on‑stop**; no per‑checkpoint booking.
+   `AGENTS.md` updated to match.
+2. **Short‑lock ignore threshold** — **90 s** (`TrackingManager.awayIgnoreThreshold`);
+   shorter gaps count as continuous work with no prompt.
+3. **Unresolved gaps at stop** — **excluded** (conservative); they stay visible
+   and resolvable in the active card until the session ends.
+4. **Idle without lock** — **not** watched yet; only real sleep / display sleep
+   / lock / fast‑user‑switch (and app downtime) create gaps.
+
+Still worth deciding if desired:
+
+- An optional input‑idle threshold (e.g. 5 min) that also creates gaps, for
+  users who never lock or sleep.
+- Whether the 90 s short‑lock threshold should be user‑configurable.
