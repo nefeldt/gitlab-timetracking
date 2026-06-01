@@ -5,11 +5,69 @@
 
 import Foundation
 
+/// An "away" period (machine asleep, screen locked, fast-user-switched, or the
+/// app not running) during an active session. Whether it counts as work is
+/// ambiguous — stepping away for a break vs. rolling the laptop to a
+/// colleague's desk — so the user decides. Gaps are never auto-discarded.
+struct AwayGap: Codable, Identifiable, Hashable {
+    enum Resolution: String, Codable {
+        case undecided
+        case counted
+        case discarded
+    }
+
+    let id: UUID
+    let start: Date
+    var end: Date
+    var resolution: Resolution
+
+    init(id: UUID = UUID(), start: Date, end: Date, resolution: Resolution = .undecided) {
+        self.id = id
+        self.start = start
+        self.end = end
+        self.resolution = resolution
+    }
+
+    /// Whole minutes spanned by the gap (shares the session min-1 clamp).
+    var minutes: Int {
+        max(1, Int(end.timeIntervalSince(start) / 60))
+    }
+}
+
 struct PersistedSession: Codable {
     let issue: GitLabIssue
     let startedAt: Date
     let lastCheckpointAt: Date
     let accumulatedMinutes: Int
+    var awayGaps: [AwayGap]
+    var awaySince: Date?
+
+    init(
+        issue: GitLabIssue,
+        startedAt: Date,
+        lastCheckpointAt: Date,
+        accumulatedMinutes: Int,
+        awayGaps: [AwayGap] = [],
+        awaySince: Date? = nil
+    ) {
+        self.issue = issue
+        self.startedAt = startedAt
+        self.lastCheckpointAt = lastCheckpointAt
+        self.accumulatedMinutes = accumulatedMinutes
+        self.awayGaps = awayGaps
+        self.awaySince = awaySince
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.issue = try container.decode(GitLabIssue.self, forKey: .issue)
+        self.startedAt = try container.decode(Date.self, forKey: .startedAt)
+        self.lastCheckpointAt = try container.decode(Date.self, forKey: .lastCheckpointAt)
+        self.accumulatedMinutes = try container.decode(Int.self, forKey: .accumulatedMinutes)
+        // Fields added with away detection; older payloads omit them.
+        self.awayGaps = try container.decodeIfPresent([AwayGap].self, forKey: .awayGaps) ?? []
+        self.awaySince = try container.decodeIfPresent(Date.self, forKey: .awaySince)
+    }
 
     // `awaitingContinuation` was removed when check-ins stopped pausing
     // tracking. Older persisted payloads may still contain the key; Codable

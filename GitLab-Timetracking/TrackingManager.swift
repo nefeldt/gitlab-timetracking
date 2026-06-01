@@ -17,7 +17,16 @@ final class TrackingManager {
         /// `accumulatedMinutes`.
         var lastCheckpointAt: Date
         var accumulatedMinutes: Int
+        /// Away periods (sleep / lock / user-switch / downtime) awaiting or
+        /// having received a user decision.
+        var awayGaps: [AwayGap] = []
+        /// Set while the machine is currently away; nil while actively tracking.
+        var awaySince: Date?
     }
+
+    /// Away periods shorter than this are treated as continuous work (a quick
+    /// lock or screen blank), so the user is not pestered for trivial gaps.
+    static let awayIgnoreThreshold: TimeInterval = 90
 
     // MARK: - Testable calculation helpers
 
@@ -35,6 +44,52 @@ final class TrackingManager {
         return updated
     }
 
+    /// The machine became unavailable. Fold the interval worked up to now into
+    /// confirmed time and stop counting until the user returns.
+    nonisolated static func beginAway(_ session: Session, at now: Date) -> Session {
+        guard session.awaySince == nil else { return session }
+        var updated = session
+        updated.accumulatedMinutes += minutesBetween(from: session.lastCheckpointAt, to: now)
+        updated.lastCheckpointAt = now
+        updated.awaySince = now
+        return updated
+    }
+
+    /// The machine became available again. A brief blip counts as continuous
+    /// work; a longer absence becomes an undecided gap for the user to resolve.
+    /// Tracking resumes either way.
+    nonisolated static func endAway(_ session: Session, at now: Date, ignoreThreshold: TimeInterval = awayIgnoreThreshold) -> Session {
+        guard let awaySince = session.awaySince else { return session }
+        var updated = session
+        updated.awaySince = nil
+        updated.lastCheckpointAt = now
+
+        if now.timeIntervalSince(awaySince) < ignoreThreshold {
+            updated.accumulatedMinutes += minutesBetween(from: awaySince, to: now)
+        } else {
+            updated.awayGaps.append(AwayGap(start: awaySince, end: now))
+        }
+        return updated
+    }
+
+    /// Minutes from away periods the user chose to count as work.
+    nonisolated static func countedGapMinutes(_ session: Session) -> Int {
+        session.awayGaps
+            .filter { $0.resolution == .counted }
+            .reduce(0) { $0 + $1.minutes }
+    }
+
+    /// Minutes of the in-progress interval (zero while away).
+    nonisolated static func openIntervalMinutes(_ session: Session, at now: Date) -> Int {
+        session.awaySince == nil ? minutesBetween(from: session.lastCheckpointAt, to: now) : 0
+    }
+
+    /// Total bookable minutes as of `now`: confirmed time + the open interval +
+    /// counted away periods. Undecided and discarded gaps are excluded.
+    nonisolated static func bookableMinutes(_ session: Session, at now: Date) -> Int {
+        session.accumulatedMinutes + openIntervalMinutes(session, at: now) + countedGapMinutes(session)
+    }
+
     var checkpointMinutes: Int { settings.checkpointMinutes }
 
     private let authManager: GitLabAuthManager
@@ -43,6 +98,7 @@ final class TrackingManager {
     private let sessionStore = SessionStore()
     private let historyStore = BookingHistoryStore()
     private var checkpointTask: Task<Void, Never>?
+    private let activityMonitor = ActivityMonitor()
     private(set) var lastRefreshAt: Date?
 
     var issues: [GitLabIssue] = []
@@ -73,10 +129,61 @@ final class TrackingManager {
         NotificationCoordinator.shared.onStop = { [weak self] in
             self?.stopTracking()
         }
+        NotificationCoordinator.shared.onCountAway = { [weak self] id in
+            self?.resolveAwayGap(id: id, as: .counted)
+        }
+        NotificationCoordinator.shared.onDiscardAway = { [weak self] id in
+            self?.resolveAwayGap(id: id, as: .discarded)
+        }
+
+        activityMonitor.onAway = { [weak self] date in
+            self?.handleAway(at: date)
+        }
+        activityMonitor.onReturn = { [weak self] date in
+            self?.handleReturn(at: date)
+        }
+        activityMonitor.start()
 
         Task {
             await restorePersistedSessionIfNeeded()
         }
+    }
+
+    // MARK: - Away handling
+
+    private func handleAway(at date: Date) {
+        guard let session = activeSession, session.awaySince == nil else { return }
+        activeSession = Self.beginAway(session, at: date)
+        // No point nudging while the machine is unavailable.
+        checkpointTask?.cancel()
+        checkpointTask = nil
+        persistActiveSession()
+    }
+
+    private func handleReturn(at date: Date) {
+        guard let session = activeSession, session.awaySince != nil else { return }
+        let priorGapCount = session.awayGaps.count
+        let updated = Self.endAway(session, at: date)
+        activeSession = updated
+        persistActiveSession()
+        scheduleCheckpoint()
+
+        if updated.awayGaps.count > priorGapCount, let gap = updated.awayGaps.last {
+            infoMessage = "Back on \(updated.issue.references.short). Away \(DurationFormatter.format(minutes: gap.minutes)) — count it?"
+            NotificationCoordinator.shared.sendAwayReconciliationNotification(for: updated.issue, gap: gap, soundName: settings.notificationSound)
+        }
+    }
+
+    var unresolvedAwayGaps: [AwayGap] {
+        activeSession?.awayGaps.filter { $0.resolution == .undecided } ?? []
+    }
+
+    func resolveAwayGap(id: UUID, as resolution: AwayGap.Resolution) {
+        guard var session = activeSession,
+              let index = session.awayGaps.firstIndex(where: { $0.id == id }) else { return }
+        session.awayGaps[index].resolution = resolution
+        activeSession = session
+        persistActiveSession()
     }
 
     var isTracking: Bool {
@@ -88,17 +195,21 @@ final class TrackingManager {
     }
 
     func secondsSinceLastCheckpoint(for session: Session) -> Int {
-        Int(max(0, Date().timeIntervalSince(session.lastCheckpointAt)))
+        // Frozen while away — the away period is not counted as work.
+        guard session.awaySince == nil else { return 0 }
+        return Int(max(0, Date().timeIntervalSince(session.lastCheckpointAt)))
     }
 
     func defaultStopSeconds(for session: Session) -> Int {
-        session.accumulatedMinutes * 60 + secondsSinceLastCheckpoint(for: session)
+        session.accumulatedMinutes * 60
+            + secondsSinceLastCheckpoint(for: session)
+            + Self.countedGapMinutes(session) * 60
     }
 
-    /// Minutes that would be booked if the user stopped right now: every minute
-    /// since the session started is counted, since tracking never pauses.
+    /// Minutes that would be booked if the user stopped right now: confirmed
+    /// time + the in-progress interval + away periods marked as counted.
     func plannedBookingMinutes(for session: Session) -> Int {
-        session.accumulatedMinutes + Self.minutesBetween(from: session.lastCheckpointAt, to: Date())
+        Self.bookableMinutes(session, at: Date())
     }
 
     func displayedTotalTrackedSeconds(for issue: GitLabIssue) -> Int {
@@ -222,7 +333,7 @@ final class TrackingManager {
         NotificationCoordinator.shared.clearCheckpointNotification()
 
         guard let session = activeSession else { return }
-        let totalMinutes = session.accumulatedMinutes + minutesSinceLastCheckpoint(session: session)
+        let totalMinutes = Self.bookableMinutes(session, at: Date())
         activeSession = nil
         sessionStore.clear()
 
@@ -555,50 +666,48 @@ final class TrackingManager {
         return min(existing, new)
     }
 
-    private func minutesSinceLastCheckpoint(session: Session) -> Int {
-        Self.minutesBetween(from: session.lastCheckpointAt, to: Date())
-    }
-
     private func restorePersistedSessionIfNeeded() async {
         guard let persisted = sessionStore.load() else {
             return
         }
 
-        let session = Session(
+        var session = Session(
             issue: persisted.issue,
             startedAt: persisted.startedAt,
             lastCheckpointAt: persisted.lastCheckpointAt,
-            accumulatedMinutes: persisted.accumulatedMinutes
+            accumulatedMinutes: persisted.accumulatedMinutes,
+            awayGaps: persisted.awayGaps,
+            awaySince: persisted.awaySince
         )
 
+        // The app was not running between the last persist and now. Treat that
+        // downtime the same way as an away period: a brief relaunch counts as
+        // continuous work, a longer absence becomes an undecided gap.
+        let now = Date()
+        if session.awaySince != nil {
+            session = Self.endAway(session, at: now)
+        } else if now.timeIntervalSince(session.lastCheckpointAt) >= Self.awayIgnoreThreshold {
+            session.awayGaps.append(AwayGap(start: session.lastCheckpointAt, end: now))
+            session.lastCheckpointAt = now
+        }
+
         activeSession = session
+        persistActiveSession()
 
         guard authManager.isAuthenticated else {
             infoMessage = "Restore paused. Connect your GitLab account to continue \(session.issue.references.short)."
             return
         }
 
-        let elapsed = Date().timeIntervalSince(session.lastCheckpointAt)
-        let checkpointInterval = TimeInterval(checkpointMinutes * 60)
-
-        if elapsed >= checkpointInterval {
-            // A check-in came due while the app was not running. Fold one
-            // interval into the running total (the remainder stays as the
-            // in-progress partial), nudge, and reschedule. Precise accounting
-            // of long downtime is handled by away detection (Phase 2).
-            let checkpointFiredAt = session.lastCheckpointAt.addingTimeInterval(checkpointInterval)
-            let updated = Self.applyCheckpoint(to: session, checkpointMinutes: checkpointMinutes, at: checkpointFiredAt)
-            activeSession = updated
-            persistActiveSession()
-
-            infoMessage = "\(DurationFormatter.format(minutes: updated.accumulatedMinutes)) tracked on \(updated.issue.references.short)."
-            NotificationCoordinator.shared.sendCheckpointNotification(for: updated.issue, checkpointMinutes: checkpointMinutes, soundName: settings.notificationSound)
-            scheduleCheckpoint()
-            return
+        if let gap = unresolvedAwayGaps.last {
+            infoMessage = "Restored \(session.issue.references.short). Away \(DurationFormatter.format(minutes: gap.minutes)) while closed — count it?"
+            NotificationCoordinator.shared.sendAwayReconciliationNotification(for: session.issue, gap: gap, soundName: settings.notificationSound)
+        } else {
+            infoMessage = "Restored tracking for \(session.issue.references.short)."
         }
 
-        infoMessage = "Restored tracking for \(session.issue.references.short)."
-        scheduleCheckpoint(after: checkpointInterval - elapsed)
+        let remaining = TimeInterval(checkpointMinutes * 60) - now.timeIntervalSince(session.lastCheckpointAt)
+        scheduleCheckpoint(after: max(1, remaining))
     }
 
     private func persistActiveSession() {
@@ -612,7 +721,9 @@ final class TrackingManager {
                 issue: activeSession.issue,
                 startedAt: activeSession.startedAt,
                 lastCheckpointAt: activeSession.lastCheckpointAt,
-                accumulatedMinutes: activeSession.accumulatedMinutes
+                accumulatedMinutes: activeSession.accumulatedMinutes,
+                awayGaps: activeSession.awayGaps,
+                awaySince: activeSession.awaySince
             )
         )
     }

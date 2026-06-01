@@ -152,40 +152,113 @@ struct TrackingCalculationTests {
         #expect(plannedMinutes(session, at: stopTime) == 50)
     }
 
-    // MARK: - Restore from persistence
+    // MARK: - Away detection (begin/end)
 
-    @Test func restore_checkpointDueDuringDowntime_foldsOneInterval() {
-        // App persisted with lastCheckpointAt = T=0, restarts at T=35,
-        // checkpoint interval = 20 min. Restore folds exactly one interval.
+    @Test func away_freezesTimeAndExcludesGapUntilCounted() {
+        // Work 20 min, away from T=20 to T=80 (1h lock), then work to T=90.
         let start = Date(timeIntervalSince1970: 0)
-        let checkpointInterval: TimeInterval = 20 * 60
+        let awayStart = start.addingTimeInterval(20 * 60)
+        let returnTime = start.addingTimeInterval(80 * 60)
+        let stopTime = start.addingTimeInterval(90 * 60)
 
-        var session = makeSession(startedAt: start, lastCheckpointAt: start)
-        let checkpointFiredAt = session.lastCheckpointAt.addingTimeInterval(checkpointInterval)
-        session = TrackingManager.applyCheckpoint(to: session, checkpointMinutes: 20, at: checkpointFiredAt)
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: awayStart)
 
+        // The 20 minutes worked before leaving are confirmed; the clock is frozen.
         #expect(session.accumulatedMinutes == 20)
-        #expect(session.lastCheckpointAt == start.addingTimeInterval(20 * 60))
+        #expect(TrackingManager.openIntervalMinutes(session, at: returnTime) == 0)
 
-        // Stopping at T=35 books 20 + 15 = 35.
-        let returnTime = start.addingTimeInterval(35 * 60)
-        #expect(plannedMinutes(session, at: returnTime) == 35)
+        session = TrackingManager.endAway(session, at: returnTime)
+        #expect(session.awayGaps.count == 1)
+        #expect(session.awayGaps[0].resolution == .undecided)
+        #expect(session.awayGaps[0].minutes == 60)
+
+        // Undecided gap is excluded: 20 confirmed + 10 worked after return = 30.
+        #expect(TrackingManager.bookableMinutes(session, at: stopTime) == 30)
+
+        // After counting the gap, the hour is included: 30 + 60 = 90.
+        session.awayGaps[0].resolution = .counted
+        #expect(TrackingManager.bookableMinutes(session, at: stopTime) == 90)
     }
 
-    @Test func restore_multipleMissedCheckpoints_onlyFoldsOneInterval() {
-        // checkpoint=20, app down for 90 min → restore folds one 20-min
-        // interval; the remaining 70 min remains the in-progress partial.
-        // (Precise downtime classification is handled by away detection.)
+    @Test func away_briefBlipCountsAsContinuousWork() {
+        // A 30-second lock (below the ignore threshold) is treated as work and
+        // produces no gap to reconcile.
         let start = Date(timeIntervalSince1970: 0)
-        let checkpointInterval: TimeInterval = 20 * 60
+        let awayStart = start.addingTimeInterval(20 * 60)
+        let returnTime = awayStart.addingTimeInterval(30)
+        let stopTime = start.addingTimeInterval(40 * 60)
+
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: awayStart)
+        session = TrackingManager.endAway(session, at: returnTime)
+
+        #expect(session.awayGaps.isEmpty)
+        // 20 worked + 20 after the blip = 40, nothing excluded.
+        #expect(TrackingManager.bookableMinutes(session, at: stopTime) == 40)
+    }
+
+    @Test func away_multipleGapsResolveIndependently() {
+        let start = Date(timeIntervalSince1970: 0)
+        var session = makeSession(startedAt: start)
+
+        // Gap A: T=10..T=40 (30 min)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(10 * 60))
+        session = TrackingManager.endAway(session, at: start.addingTimeInterval(40 * 60))
+        // Gap B: T=50..T=110 (60 min)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(50 * 60))
+        session = TrackingManager.endAway(session, at: start.addingTimeInterval(110 * 60))
+
+        #expect(session.awayGaps.count == 2)
+
+        // Count only the first gap.
+        session.awayGaps[0].resolution = .counted
+        session.awayGaps[1].resolution = .discarded
+        #expect(TrackingManager.countedGapMinutes(session) == 30)
+    }
+
+    @Test func away_doubleBeginIsIgnored() {
+        let start = Date(timeIntervalSince1970: 0)
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(10 * 60))
+        let firstAwaySince = session.awaySince
+        // A second away event before returning must not move the boundary.
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(15 * 60))
+        #expect(session.awaySince == firstAwaySince)
+    }
+
+    // MARK: - Restore from persistence (downtime treated as an away gap)
+
+    @Test func restore_downtimeBecomesUndecidedGap() {
+        // App persisted at T=0, relaunched at T=90. The whole downtime is an
+        // undecided gap; nothing is silently counted.
+        let start = Date(timeIntervalSince1970: 0)
         let restoreTime = start.addingTimeInterval(90 * 60)
 
-        var session = makeSession(startedAt: start, lastCheckpointAt: start)
-        let checkpointFiredAt = session.lastCheckpointAt.addingTimeInterval(checkpointInterval)
-        session = TrackingManager.applyCheckpoint(to: session, checkpointMinutes: 20, at: checkpointFiredAt)
+        var session = makeSession(startedAt: start, lastCheckpointAt: start, accumulatedMinutes: 0)
+        // Mirrors restore: lastCheckpointAt..now becomes a gap when long.
+        session.awayGaps.append(AwayGap(start: session.lastCheckpointAt, end: restoreTime))
+        session.lastCheckpointAt = restoreTime
 
-        #expect(session.accumulatedMinutes == 20)
-        #expect(plannedMinutes(session, at: restoreTime) == 90)
+        #expect(TrackingManager.bookableMinutes(session, at: restoreTime) == 1) // only the min-1 open interval
+        session.awayGaps[0].resolution = .counted
+        #expect(TrackingManager.bookableMinutes(session, at: restoreTime) == 91)
+    }
+
+    @Test func restore_midAwayClosesGapOnReturn() {
+        // Persisted while away (awaySince set); restore closes it at now.
+        let start = Date(timeIntervalSince1970: 0)
+        let awayStart = start.addingTimeInterval(20 * 60)
+        let restoreTime = start.addingTimeInterval(80 * 60)
+
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: awayStart)
+        // Restore path: endAway at relaunch time.
+        session = TrackingManager.endAway(session, at: restoreTime)
+
+        #expect(session.awaySince == nil)
+        #expect(session.awayGaps.count == 1)
+        #expect(session.awayGaps[0].minutes == 60)
     }
 
     // MARK: - Edge cases

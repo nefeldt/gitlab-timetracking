@@ -261,6 +261,8 @@ struct MenuBarContentView: View {
             }
             .buttonStyle(.plain)
 
+            awayGapReconciliation(session: session)
+
             let plannedWithCurrent = tracker.plannedBookingMinutes(for: session)
 
             HStack {
@@ -270,6 +272,49 @@ struct MenuBarContentView: View {
                 Spacer()
             }
         }
+    }
+
+    @ViewBuilder
+    private func awayGapReconciliation(session: TrackingManager.Session) -> some View {
+        let gaps = session.awayGaps.filter { $0.resolution == .undecided }
+        if !gaps.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Label("Away time — count it?", systemImage: "moon.zzz.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(AppColors.checkpointOrange)
+
+                ForEach(gaps) { gap in
+                    HStack(spacing: 8) {
+                        Text("\(awayGapRange(gap)) · \(tracker.formattedDuration(minutes: gap.minutes))")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Button("Count") {
+                            tracker.resolveAwayGap(id: gap.id, as: .counted)
+                        }
+                        .controlSize(.small)
+                        Button("Discard") {
+                            tracker.resolveAwayGap(id: gap.id, as: .discarded)
+                        }
+                        .controlSize(.small)
+                    }
+                }
+            }
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(AppColors.checkpointOrange.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(AppColors.checkpointOrange.opacity(0.35), lineWidth: 1)
+            }
+        }
+    }
+
+    private func awayGapRange(_ gap: AwayGap) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return "\(formatter.string(from: gap.start))–\(formatter.string(from: gap.end))"
     }
 
     @ViewBuilder
