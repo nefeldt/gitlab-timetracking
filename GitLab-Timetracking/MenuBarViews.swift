@@ -139,7 +139,7 @@ struct MenuBarContentView: View {
             }
             .padding(16)
 
-            if let issue = issuePendingSwitchConfirmation {
+            if let issue = issuePendingSwitchConfirmation, tracker.activeSession != nil {
                 switchConfirmationOverlay(newIssue: issue)
             }
 
@@ -807,59 +807,88 @@ struct MenuBarContentView: View {
         }
     }
 
+    @ViewBuilder
     private func switchConfirmationOverlay(newIssue: GitLabIssue) -> some View {
-        let session = tracker.activeSession!
-        let total = tracker.plannedBookingMinutes(for: session)
+        if let session = tracker.activeSession {
+            let awayMinutes = session.awayGaps
+                .filter { $0.resolution == .undecided }
+                .reduce(0) { $0 + $1.minutes }
 
-        return ZStack {
-            Color.black.opacity(0.2)
-                .ignoresSafeArea()
+            ZStack {
+                Color.black.opacity(0.2)
+                    .ignoresSafeArea()
 
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Switch Issue?")
-                    .font(.headline)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Switch Issue?")
+                        .font(.headline)
 
-                Text("Currently tracking \(session.issue.references.short). How should the tracked time be handled?")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    Text("Currently tracking \(session.issue.references.short). How should the tracked time be handled?")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
 
-                VStack(spacing: 8) {
-                    Button {
-                        tracker.stopTracking()
-                        tracker.startTracking(issue: newIssue)
-                        issuePendingSwitchConfirmation = nil
-                    } label: {
-                        Text("Book \(DurationFormatter.format(minutes: total)) & Switch")
-                            .frame(maxWidth: .infinity)
+                    // Tracking keeps running while this is open, so recompute the
+                    // booked total live instead of showing a stale number.
+                    TimelineView(.periodic(from: .now, by: 1)) { _ in
+                        let work = tracker.plannedBookingMinutes(for: session)
+
+                        VStack(spacing: 8) {
+                            Button {
+                                switchTracking(to: newIssue, includeAway: false)
+                            } label: {
+                                Text("Book \(DurationFormatter.format(minutes: work)) & Switch")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .controlSize(.large)
+
+                            if awayMinutes > 0 {
+                                Button {
+                                    switchTracking(to: newIssue, includeAway: true)
+                                } label: {
+                                    Text("Book \(DurationFormatter.format(minutes: work + awayMinutes)) incl. away & Switch")
+                                        .frame(maxWidth: .infinity)
+                                }
+                                .controlSize(.large)
+                            }
+
+                            Button {
+                                tracker.stopTrackingWithoutBooking()
+                                tracker.startTracking(issue: newIssue)
+                                issuePendingSwitchConfirmation = nil
+                            } label: {
+                                Text("Discard & Switch")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .controlSize(.large)
+
+                            Button("Cancel") {
+                                issuePendingSwitchConfirmation = nil
+                            }
+                            .controlSize(.large)
+                        }
                     }
-                    .controlSize(.large)
-
-                    Button {
-                        tracker.stopTrackingWithoutBooking()
-                        tracker.startTracking(issue: newIssue)
-                        issuePendingSwitchConfirmation = nil
-                    } label: {
-                        Text("Discard & Switch")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .controlSize(.large)
-
-                    Button("Cancel") {
-                        issuePendingSwitchConfirmation = nil
-                    }
-                    .controlSize(.large)
                 }
+                .padding(16)
+                .frame(maxWidth: 320, alignment: .leading)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
             }
-            .padding(16)
-            .frame(maxWidth: 320, alignment: .leading)
-            .background(Color(nsColor: .windowBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .overlay {
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            }
-            .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
         }
+    }
+
+    /// Books the current session and starts the new one. When `includeAway` is
+    /// set, unresolved away periods are counted first so they are not dropped.
+    private func switchTracking(to newIssue: GitLabIssue, includeAway: Bool) {
+        if includeAway {
+            tracker.countAllUnresolvedAwayGaps()
+        }
+        tracker.stopTracking()
+        tracker.startTracking(issue: newIssue)
+        issuePendingSwitchConfirmation = nil
     }
 
     private var filteredHistory: [BookingHistoryEntry] {

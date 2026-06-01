@@ -227,6 +227,35 @@ struct TrackingCalculationTests {
         #expect(session.awaySince == firstAwaySince)
     }
 
+    @Test func stopWhileAway_booksNoAwayTime() {
+        // Stopping (or switching) while still away books only confirmed work —
+        // the open interval is frozen, so the away time is not counted.
+        let start = Date(timeIntervalSince1970: 0)
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(20 * 60))
+        #expect(TrackingManager.bookableMinutes(session, at: start.addingTimeInterval(120 * 60)) == 20)
+    }
+
+    // MARK: - Switch issue booking math
+
+    @Test func switch_bookWorkOnly_vs_includeAway() {
+        // Work 20 min, away 30 min, work 10 min, then switch issue.
+        let start = Date(timeIntervalSince1970: 0)
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(20 * 60))
+        session = TrackingManager.endAway(session, at: start.addingTimeInterval(50 * 60))
+        let switchTime = start.addingTimeInterval(60 * 60)
+
+        // "Book work only & Switch": undecided away excluded → 20 + 10 = 30.
+        #expect(TrackingManager.bookableMinutes(session, at: switchTime) == 30)
+
+        // "Book incl. away & Switch": count all undecided first → 30 + 30 = 60.
+        for index in session.awayGaps.indices {
+            session.awayGaps[index].resolution = .counted
+        }
+        #expect(TrackingManager.bookableMinutes(session, at: switchTime) == 60)
+    }
+
     // MARK: - Restore from persistence (downtime treated as an away gap)
 
     @Test func restore_downtimeBecomesUndecidedGap() {

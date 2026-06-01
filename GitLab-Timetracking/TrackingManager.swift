@@ -239,6 +239,17 @@ final class TrackingManager {
         activeSession?.awayGaps.filter { $0.resolution == .undecided } ?? []
     }
 
+    /// Marks every still-undecided away period as counted. Used when switching
+    /// issues with the "include away" option so that time is booked, not lost.
+    func countAllUnresolvedAwayGaps() {
+        guard var session = activeSession else { return }
+        for index in session.awayGaps.indices where session.awayGaps[index].resolution == .undecided {
+            session.awayGaps[index].resolution = .counted
+        }
+        activeSession = session
+        persistActiveSession()
+    }
+
     func resolveAwayGap(id: UUID, as resolution: AwayGap.Resolution) {
         guard var session = activeSession,
               let index = session.awayGaps.firstIndex(where: { $0.id == id }) else { return }
