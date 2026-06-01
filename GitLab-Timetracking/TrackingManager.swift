@@ -90,6 +90,24 @@ final class TrackingManager {
         session.accumulatedMinutes + openIntervalMinutes(session, at: now) + countedGapMinutes(session)
     }
 
+    /// Whether a booking failure is worth retrying automatically. Network
+    /// problems (offline, timeout, VPN dropped), 5xx, 429 and auth blips are
+    /// transient; a 4xx like 403/404 is permanent and left for manual handling.
+    nonisolated static func isTransient(_ error: Error) -> Bool {
+        if error is URLError { return true }
+        if let apiError = error as? GitLabAPIError {
+            switch apiError {
+            case let .serverError(statusCode, _):
+                return statusCode >= 500 || statusCode == 429 || statusCode == 408 || statusCode == 401
+            case .notAuthenticated, .invalidResponse:
+                return true
+            case .missingConfiguration:
+                return false
+            }
+        }
+        return true
+    }
+
     var checkpointMinutes: Int { settings.checkpointMinutes }
 
     private let authManager: GitLabAuthManager
@@ -99,6 +117,8 @@ final class TrackingManager {
     private let historyStore = BookingHistoryStore()
     private var checkpointTask: Task<Void, Never>?
     private let activityMonitor = ActivityMonitor()
+    private let networkMonitor = NetworkMonitor()
+    private var retrySweepTask: Task<Void, Never>?
     private(set) var lastRefreshAt: Date?
 
     var issues: [GitLabIssue] = []
@@ -144,8 +164,46 @@ final class TrackingManager {
         }
         activityMonitor.start()
 
+        networkMonitor.onBecameReachable = { [weak self] in
+            self?.ensureRetrySweep()
+        }
+        networkMonitor.start()
+
+        // Resume retrying anything left pending from a previous session.
+        if !pendingBookings.isEmpty {
+            ensureRetrySweep()
+        }
+
         Task {
             await restorePersistedSessionIfNeeded()
+        }
+    }
+
+    // MARK: - Automatic booking retry
+
+    /// Drives pending bookings to completion in the background using capped
+    /// exponential backoff. Re-kicked immediately when the network returns.
+    private func ensureRetrySweep() {
+        guard retrySweepTask == nil else { return }
+        guard !pendingBookings.isEmpty else { return }
+
+        retrySweepTask = Task { [weak self] in
+            var delay: Duration = .seconds(2)
+            let maxDelay: Duration = .seconds(300)
+
+            while !Task.isCancelled {
+                guard let self, !self.pendingBookings.isEmpty else { break }
+
+                if self.networkMonitor.isReachable {
+                    await self.retryAllPendingBookings(automatic: true)
+                    if self.pendingBookings.isEmpty { break }
+                }
+
+                try? await Task.sleep(for: delay)
+                delay = min(delay * 2, maxDelay)
+            }
+
+            self?.retrySweepTask = nil
         }
     }
 
@@ -172,6 +230,9 @@ final class TrackingManager {
             infoMessage = "Back on \(updated.issue.references.short). Away \(DurationFormatter.format(minutes: gap.minutes)) — count it?"
             NotificationCoordinator.shared.sendAwayReconciliationNotification(for: updated.issue, gap: gap, soundName: settings.notificationSound)
         }
+
+        // Connectivity may have changed while away — flush anything pending.
+        ensureRetrySweep()
     }
 
     var unresolvedAwayGaps: [AwayGap] {
@@ -480,8 +541,15 @@ final class TrackingManager {
             updated.status = .pending
             updated.lastError = message
             bookingHistory = historyStore.update(updated)
-            errorMessage = "Booking failed, saved as pending. \(message)"
-            infoMessage = "Open Booking History to retry \(DurationFormatter.format(minutes: minutes)) on \(issue.references.short)."
+
+            if Self.isTransient(error) {
+                errorMessage = "Booking deferred — will retry automatically. \(message)"
+                infoMessage = "Will retry \(DurationFormatter.format(minutes: minutes)) on \(issue.references.short) when reachable."
+                ensureRetrySweep()
+            } else {
+                errorMessage = "Booking failed, saved as pending. \(message)"
+                infoMessage = "Open Booking History to retry \(DurationFormatter.format(minutes: minutes)) on \(issue.references.short)."
+            }
         }
     }
 
@@ -506,7 +574,7 @@ final class TrackingManager {
     }
 
     @discardableResult
-    func retryPendingBooking(id: UUID) async -> Bool {
+    func retryPendingBooking(id: UUID, automatic: Bool = false) async -> Bool {
         guard let entry = bookingHistory.first(where: { $0.id == id }),
               entry.status == .pending else {
             return false
@@ -516,7 +584,7 @@ final class TrackingManager {
             var updated = entry
             updated.lastError = "Missing issue reference — cannot retry. Discard and re-track."
             bookingHistory = historyStore.update(updated)
-            errorMessage = updated.lastError
+            if !automatic { errorMessage = updated.lastError }
             return false
         }
 
@@ -542,23 +610,33 @@ final class TrackingManager {
             updated.status = .pending
             updated.lastError = error.localizedDescription
             bookingHistory = historyStore.update(updated)
-            errorMessage = "Retry failed: \(error.localizedDescription)"
+            // Stay quiet during background sweeps; the sweep keeps retrying.
+            if !automatic { errorMessage = "Retry failed: \(error.localizedDescription)" }
             return false
         }
     }
 
-    func retryAllPendingBookings() async {
+    func retryAllPendingBookings(automatic: Bool = false) async {
         let pendingIDs = pendingBookings.map(\.id)
         guard !pendingIDs.isEmpty else { return }
 
         var successes = 0
         var failures = 0
         for id in pendingIDs {
-            if await retryPendingBooking(id: id) {
+            if await retryPendingBooking(id: id, automatic: automatic) {
                 successes += 1
             } else {
                 failures += 1
             }
+        }
+
+        if automatic {
+            // Only surface good news automatically; failures keep retrying silently.
+            if successes > 0 {
+                errorMessage = pendingBookings.isEmpty ? nil : errorMessage
+                infoMessage = "Synced \(successes) pending booking\(successes == 1 ? "" : "s")."
+            }
+            return
         }
 
         if failures == 0 {

@@ -296,6 +296,23 @@ struct TrackingCalculationTests {
         #expect(plannedMinutes(session, at: immediateStop) == 21)
     }
 
+    // MARK: - Transient vs permanent booking failures
+
+    @Test func isTransient_networkAndServerErrorsRetry() {
+        #expect(TrackingManager.isTransient(URLError(.notConnectedToInternet)))
+        #expect(TrackingManager.isTransient(URLError(.timedOut)))
+        #expect(TrackingManager.isTransient(GitLabAPIError.serverError(statusCode: 500, message: "x")))
+        #expect(TrackingManager.isTransient(GitLabAPIError.serverError(statusCode: 429, message: "x")))
+        #expect(TrackingManager.isTransient(GitLabAPIError.serverError(statusCode: 401, message: "x")))
+        #expect(TrackingManager.isTransient(GitLabAPIError.notAuthenticated))
+    }
+
+    @Test func isTransient_clientErrorsDoNotRetry() {
+        #expect(!TrackingManager.isTransient(GitLabAPIError.serverError(statusCode: 404, message: "x")))
+        #expect(!TrackingManager.isTransient(GitLabAPIError.serverError(statusCode: 403, message: "x")))
+        #expect(!TrackingManager.isTransient(GitLabAPIError.missingConfiguration))
+    }
+
     @Test func longSession_manyCheckpoints_thenStop() {
         // 8-hour session with 20-min checkpoints = 24 checkpoints
         let start = Date(timeIntervalSince1970: 0)
