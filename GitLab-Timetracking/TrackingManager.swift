@@ -108,6 +108,16 @@ final class TrackingManager {
         return true
     }
 
+    /// Whether a failed request still implies GitLab was reached: any HTTP
+    /// response (even a 4xx/5xx) means the server answered, whereas a transport
+    /// error (offline / VPN down) means it was never reached.
+    nonisolated static func errorImpliesReachable(_ error: Error) -> Bool {
+        if let apiError = error as? GitLabAPIError, case .serverError = apiError {
+            return true
+        }
+        return false
+    }
+
     var checkpointMinutes: Int { settings.checkpointMinutes }
 
     private let authManager: GitLabAuthManager
@@ -125,6 +135,11 @@ final class TrackingManager {
     var issueStatuses: [Int: GitLabIssueStatus] = [:]
     var issueParents: [Int: GitLabIssueParent] = [:]
     var activeSession: Session?
+    /// Live network reachability (NWPathMonitor); part of `connectionStatus`.
+    var isNetworkReachable = true
+    /// Whether the most recent GitLab interaction reached the server. Combined
+    /// with reachability and auth to derive `connectionStatus`.
+    private(set) var isGitLabReachable = true
     var isLoading = false
     var errorMessage: String?
     var infoMessage = "Configure GitLab to start."
@@ -164,8 +179,12 @@ final class TrackingManager {
         }
         activityMonitor.start()
 
-        networkMonitor.onBecameReachable = { [weak self] in
-            self?.ensureRetrySweep()
+        networkMonitor.onReachabilityChanged = { [weak self] reachable in
+            guard let self else { return }
+            self.isNetworkReachable = reachable
+            if reachable {
+                self.ensureRetrySweep()
+            }
         }
         networkMonitor.start()
 
@@ -266,6 +285,15 @@ final class TrackingManager {
         activeSession != nil
     }
 
+    /// Live ability to talk to GitLab, derived from configuration, auth,
+    /// network reachability, and the outcome of recent API calls.
+    var connectionStatus: ConnectionStatus {
+        guard settings.isConfigured else { return .notConfigured }
+        guard authManager.isAuthenticated else { return .signedOut }
+        guard isNetworkReachable else { return .offline }
+        return isGitLabReachable ? .connected : .gitLabUnreachable
+    }
+
     var activeIssue: GitLabIssue? {
         activeSession?.issue
     }
@@ -346,6 +374,7 @@ final class TrackingManager {
         do {
             let configuration = try await authManager.currentAuthorization()
             let fetchedIssues = try await api.fetchAssignedIssues(configuration: configuration)
+            isGitLabReachable = true
             issues = fetchedIssues
             lastRefreshAt = Date()
             infoMessage = fetchedIssues.isEmpty ? "No currently assigned open issues." : "Assigned issues updated."
@@ -359,6 +388,7 @@ final class TrackingManager {
                 issueParents = [:]
             }
         } catch {
+            isGitLabReachable = Self.errorImpliesReachable(error)
             errorMessage = error.localizedDescription
         }
 
@@ -547,6 +577,7 @@ final class TrackingManager {
         do {
             let configuration = try await authManager.currentAuthorization()
             try await api.addSpentTime(issue: issue, duration: "\(minutes)m", configuration: configuration)
+            isGitLabReachable = true
             errorMessage = nil
             infoMessage = followUp
 
@@ -554,6 +585,7 @@ final class TrackingManager {
             updated.status = .booked
             bookingHistory = historyStore.update(updated)
         } catch {
+            isGitLabReachable = Self.errorImpliesReachable(error)
             let message = error.localizedDescription
             var updated = uploading
             updated.status = .pending
@@ -615,6 +647,7 @@ final class TrackingManager {
         do {
             let configuration = try await authManager.currentAuthorization()
             try await api.addSpentTime(projectID: projectID, issueIID: issueIID, duration: "\(entry.minutes)m", configuration: configuration)
+            isGitLabReachable = true
             var updated = inFlight
             updated.status = .booked
             updated.lastError = nil
@@ -624,6 +657,7 @@ final class TrackingManager {
             infoMessage = "Booked \(DurationFormatter.format(minutes: entry.minutes)) to \(entry.issueReference)."
             return true
         } catch {
+            isGitLabReachable = Self.errorImpliesReachable(error)
             var updated = inFlight
             updated.status = .pending
             updated.lastError = error.localizedDescription

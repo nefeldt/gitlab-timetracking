@@ -189,6 +189,7 @@ struct SettingsView: View {
             Section("Appearance") {
                 Toggle("Show parent issue on issue cards", isOn: $settings.showParentIssueOnCard)
                 Toggle("Show status pill on issue cards", isOn: $settings.showStatusPillOnCard)
+                Toggle("Show GitLab connection status", isOn: $settings.showConnectionStatus)
             }
 
             Section("Time Tracking") {
@@ -283,6 +284,7 @@ struct SettingsView: View {
         .onChange(of: settings.showIssueReferenceInMenuBar) { _, _ in settings.save() }
         .onChange(of: settings.showParentIssueOnCard) { _, _ in settings.save() }
         .onChange(of: settings.showStatusPillOnCard) { _, _ in settings.save() }
+        .onChange(of: settings.showConnectionStatus) { _, _ in settings.save() }
         .onChange(of: settings.checkpointMinutes) { _, _ in settings.save() }
         .onChange(of: settings.notificationSound) { _, _ in settings.save() }
     }

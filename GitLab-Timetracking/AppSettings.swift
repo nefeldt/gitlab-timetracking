@@ -22,6 +22,7 @@ final class AppSettings {
         static let showIssueReferenceInMenuBar = "ui.showIssueReferenceInMenuBar"
         static let showParentIssueOnCard = "ui.showParentIssueOnCard"
         static let showStatusPillOnCard = "ui.showStatusPillOnCard"
+        static let showConnectionStatus = "ui.showConnectionStatus"
         static let lastSelectedProjectID = "gitlab.lastSelectedProjectID"
         static let recentProjectIDs = "gitlab.recentProjectIDs"
         static let recentIssueIDs = "gitlab.recentIssueIDs"
@@ -40,6 +41,7 @@ final class AppSettings {
     var showIssueReferenceInMenuBar: Bool
     var showParentIssueOnCard: Bool
     var showStatusPillOnCard: Bool
+    var showConnectionStatus: Bool
     private(set) var gitLabGroupPaths: [String]
     private(set) var lastSelectedProjectID: Int?
     private(set) var recentProjectIDs: [Int]
@@ -62,6 +64,7 @@ final class AppSettings {
         let localShowIssueReferenceInMenuBar = defaults.object(forKey: Keys.showIssueReferenceInMenuBar) as? Bool ?? true
         let localShowParentIssueOnCard = defaults.object(forKey: Keys.showParentIssueOnCard) as? Bool ?? true
         let localShowStatusPillOnCard = defaults.object(forKey: Keys.showStatusPillOnCard) as? Bool ?? true
+        let localShowConnectionStatus = defaults.object(forKey: Keys.showConnectionStatus) as? Bool ?? true
         let localLastProjectID = defaults.object(forKey: Keys.lastSelectedProjectID) as? Int
         let localRecentProjectIDs = defaults.array(forKey: Keys.recentProjectIDs) as? [Int] ?? []
         let localRecentIssueIDs = defaults.array(forKey: Keys.recentIssueIDs) as? [Int] ?? []
@@ -75,6 +78,7 @@ final class AppSettings {
         let remoteShowIssueReferenceInMenuBar = cloudStore.object(forKey: Keys.showIssueReferenceInMenuBar) as? Bool
         let remoteShowParentIssueOnCard = cloudStore.object(forKey: Keys.showParentIssueOnCard) as? Bool
         let remoteShowStatusPillOnCard = cloudStore.object(forKey: Keys.showStatusPillOnCard) as? Bool
+        let remoteShowConnectionStatus = cloudStore.object(forKey: Keys.showConnectionStatus) as? Bool
         let remoteLastProjectID = cloudStore.object(forKey: Keys.lastSelectedProjectID) as? Int
         let remoteRecentProjectIDs = cloudStore.array(forKey: Keys.recentProjectIDs) as? [Int] ?? []
         let remoteRecentIssueIDs = cloudStore.array(forKey: Keys.recentIssueIDs) as? [Int] ?? []
@@ -87,6 +91,7 @@ final class AppSettings {
         showIssueReferenceInMenuBar = remoteShowIssueReferenceInMenuBar ?? localShowIssueReferenceInMenuBar
         showParentIssueOnCard = remoteShowParentIssueOnCard ?? localShowParentIssueOnCard
         showStatusPillOnCard = remoteShowStatusPillOnCard ?? localShowStatusPillOnCard
+        showConnectionStatus = remoteShowConnectionStatus ?? localShowConnectionStatus
         gitLabGroupPaths = Self.resolveGroupPaths(
             primary: remoteGroupPaths,
             fallbackArray: localGroupPaths,
@@ -98,7 +103,7 @@ final class AppSettings {
         checkpointMinutes = remoteCheckpointMinutes ?? localCheckpointMinutes ?? 20
         notificationSound = remoteNotificationSound.isEmpty ? (localNotificationSound.isEmpty ? "Sosumi" : localNotificationSound) : remoteNotificationSound
 
-        if !gitLabBaseURL.isEmpty || !oauthClientID.isEmpty || showTrackedTimeInMenuBar || !showIssueReferenceInMenuBar || !showParentIssueOnCard || !showStatusPillOnCard || !gitLabGroupPaths.isEmpty || lastSelectedProjectID != nil || !recentProjectIDs.isEmpty || !recentIssueIDs.isEmpty || checkpointMinutes != 20 || notificationSound != "Sosumi" {
+        if !gitLabBaseURL.isEmpty || !oauthClientID.isEmpty || showTrackedTimeInMenuBar || !showIssueReferenceInMenuBar || !showParentIssueOnCard || !showStatusPillOnCard || !showConnectionStatus || !gitLabGroupPaths.isEmpty || lastSelectedProjectID != nil || !recentProjectIDs.isEmpty || !recentIssueIDs.isEmpty || checkpointMinutes != 20 || notificationSound != "Sosumi" {
             save()
         }
 
@@ -216,6 +221,7 @@ final class AppSettings {
             || changedKeys.contains(Keys.showIssueReferenceInMenuBar)
             || changedKeys.contains(Keys.showParentIssueOnCard)
             || changedKeys.contains(Keys.showStatusPillOnCard)
+            || changedKeys.contains(Keys.showConnectionStatus)
             || changedKeys.contains(Keys.gitLabGroupPath)
             || changedKeys.contains(Keys.gitLabGroupPaths)
             || changedKeys.contains(Keys.lastSelectedProjectID)
@@ -234,6 +240,7 @@ final class AppSettings {
         let remoteShowIssueReferenceInMenuBar = cloudStore.object(forKey: Keys.showIssueReferenceInMenuBar) as? Bool ?? true
         let remoteShowParentIssueOnCard = cloudStore.object(forKey: Keys.showParentIssueOnCard) as? Bool ?? true
         let remoteShowStatusPillOnCard = cloudStore.object(forKey: Keys.showStatusPillOnCard) as? Bool ?? true
+        let remoteShowConnectionStatus = cloudStore.object(forKey: Keys.showConnectionStatus) as? Bool ?? true
         let remoteGroupPath = cloudStore.string(forKey: Keys.gitLabGroupPath) ?? ""
         let remoteGroupPaths = cloudStore.array(forKey: Keys.gitLabGroupPaths) as? [String] ?? []
         let remoteLastProjectID = cloudStore.object(forKey: Keys.lastSelectedProjectID) as? Int
@@ -254,6 +261,7 @@ final class AppSettings {
         if showIssueReferenceInMenuBar != remoteShowIssueReferenceInMenuBar { showIssueReferenceInMenuBar = remoteShowIssueReferenceInMenuBar }
         if showParentIssueOnCard != remoteShowParentIssueOnCard { showParentIssueOnCard = remoteShowParentIssueOnCard }
         if showStatusPillOnCard != remoteShowStatusPillOnCard { showStatusPillOnCard = remoteShowStatusPillOnCard }
+        if showConnectionStatus != remoteShowConnectionStatus { showConnectionStatus = remoteShowConnectionStatus }
         if gitLabGroupPaths != resolvedRemoteGroupPaths { gitLabGroupPaths = resolvedRemoteGroupPaths }
         if lastSelectedProjectID != remoteLastProjectID { lastSelectedProjectID = remoteLastProjectID }
         if recentProjectIDs != remoteRecentProjectIDs { recentProjectIDs = remoteRecentProjectIDs }
@@ -268,6 +276,7 @@ final class AppSettings {
             showIssueReferenceInMenuBar: remoteShowIssueReferenceInMenuBar,
             showParentIssueOnCard: remoteShowParentIssueOnCard,
             showStatusPillOnCard: remoteShowStatusPillOnCard,
+            showConnectionStatus: remoteShowConnectionStatus,
             groupPaths: resolvedRemoteGroupPaths,
             legacyGroupPath: remoteGroupPath,
             lastSelectedProjectID: remoteLastProjectID,
@@ -287,6 +296,7 @@ final class AppSettings {
         let showIssueReferenceInMenuBar: Bool
         let showParentIssueOnCard: Bool
         let showStatusPillOnCard: Bool
+        let showConnectionStatus: Bool
         let groupPaths: [String]
         let legacyGroupPath: String
         let lastSelectedProjectID: Int?
@@ -304,6 +314,7 @@ final class AppSettings {
             showIssueReferenceInMenuBar: showIssueReferenceInMenuBar,
             showParentIssueOnCard: showParentIssueOnCard,
             showStatusPillOnCard: showStatusPillOnCard,
+            showConnectionStatus: showConnectionStatus,
             groupPaths: normalizedGroupPaths,
             legacyGroupPath: normalizedGroupPaths.first ?? "",
             lastSelectedProjectID: lastSelectedProjectID,
@@ -321,6 +332,7 @@ final class AppSettings {
         defaults.set(v.showIssueReferenceInMenuBar, forKey: Keys.showIssueReferenceInMenuBar)
         defaults.set(v.showParentIssueOnCard, forKey: Keys.showParentIssueOnCard)
         defaults.set(v.showStatusPillOnCard, forKey: Keys.showStatusPillOnCard)
+        defaults.set(v.showConnectionStatus, forKey: Keys.showConnectionStatus)
         defaults.set(v.groupPaths, forKey: Keys.gitLabGroupPaths)
         defaults.set(v.legacyGroupPath, forKey: Keys.gitLabGroupPath)
         defaults.set(v.lastSelectedProjectID, forKey: Keys.lastSelectedProjectID)
@@ -337,6 +349,7 @@ final class AppSettings {
         cloudStore.set(v.showIssueReferenceInMenuBar, forKey: Keys.showIssueReferenceInMenuBar)
         cloudStore.set(v.showParentIssueOnCard, forKey: Keys.showParentIssueOnCard)
         cloudStore.set(v.showStatusPillOnCard, forKey: Keys.showStatusPillOnCard)
+        cloudStore.set(v.showConnectionStatus, forKey: Keys.showConnectionStatus)
         cloudStore.set(v.groupPaths, forKey: Keys.gitLabGroupPaths)
         cloudStore.set(v.legacyGroupPath, forKey: Keys.gitLabGroupPath)
         cloudStore.set(v.lastSelectedProjectID, forKey: Keys.lastSelectedProjectID)

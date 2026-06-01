@@ -342,6 +342,22 @@ struct TrackingCalculationTests {
         #expect(!TrackingManager.isTransient(GitLabAPIError.missingConfiguration))
     }
 
+    // MARK: - Connection status: did a failure still reach GitLab?
+
+    @Test func errorImpliesReachable_serverResponseMeansReached() {
+        // Any HTTP status means the server answered → GitLab is reachable.
+        #expect(TrackingManager.errorImpliesReachable(GitLabAPIError.serverError(statusCode: 404, message: "x")))
+        #expect(TrackingManager.errorImpliesReachable(GitLabAPIError.serverError(statusCode: 500, message: "x")))
+    }
+
+    @Test func errorImpliesReachable_transportErrorsMeanUnreachable() {
+        // Transport failures (offline / VPN down) never reached GitLab.
+        #expect(!TrackingManager.errorImpliesReachable(URLError(.notConnectedToInternet)))
+        #expect(!TrackingManager.errorImpliesReachable(URLError(.timedOut)))
+        #expect(!TrackingManager.errorImpliesReachable(GitLabAPIError.invalidResponse))
+        #expect(!TrackingManager.errorImpliesReachable(GitLabAPIError.notAuthenticated))
+    }
+
     @Test func longSession_manyCheckpoints_thenStop() {
         // 8-hour session with 20-min checkpoints = 24 checkpoints
         let start = Date(timeIntervalSince1970: 0)

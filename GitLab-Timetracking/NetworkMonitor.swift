@@ -15,8 +15,8 @@ final class NetworkMonitor {
     private let queue = DispatchQueue(label: "GitLabTimetracking.NetworkMonitor")
 
     private(set) var isReachable = true
-    /// Called on the rising edge (unreachable → reachable).
-    var onBecameReachable: (() -> Void)?
+    /// Called whenever reachability flips, with the new value.
+    var onReachabilityChanged: ((Bool) -> Void)?
 
     func start() {
         monitor.pathUpdateHandler = { [weak self] path in
@@ -25,8 +25,8 @@ final class NetworkMonitor {
                 guard let self else { return }
                 let wasReachable = self.isReachable
                 self.isReachable = reachable
-                if reachable && !wasReachable {
-                    self.onBecameReachable?()
+                if reachable != wasReachable {
+                    self.onReachabilityChanged?(reachable)
                 }
             }
         }

@@ -13,6 +13,15 @@ extension Notification.Name {
 enum AppColors {
     static let trackingGreen = Color(red: 0.18, green: 0.62, blue: 0.33)
     static let checkpointOrange = Color.orange
+
+    static func connection(_ status: ConnectionStatus) -> Color {
+        switch status {
+        case .connected: return trackingGreen
+        case .gitLabUnreachable: return checkpointOrange
+        case .offline: return .red
+        case .signedOut, .notConfigured: return .secondary
+        }
+    }
 }
 
 struct MenuBarLabelView: View {
@@ -28,6 +37,14 @@ struct MenuBarLabelView: View {
                 .symbolRenderingMode(.palette)
                 .foregroundStyle(statusColor, statusColor.opacity(1.0))
                 .font(.system(size: 20, weight: .bold))
+                .overlay(alignment: .bottomTrailing) {
+                    if settings.showConnectionStatus {
+                        Circle()
+                            .fill(AppColors.connection(tracker.connectionStatus))
+                            .frame(width: 6, height: 6)
+                            .help(tracker.connectionStatus.label)
+                    }
+                }
             Text(statusLabel)
         }
         .task(id: shouldTick) {
@@ -133,6 +150,7 @@ struct MenuBarContentView: View {
                     historyContent
                 } else {
                     header
+                    connectionStatusRow
                     trackingOverviewSection
 
                     if let errorMessage = tracker.errorMessage {
@@ -164,6 +182,29 @@ struct MenuBarContentView: View {
                 await tracker.refreshIssues()
             }
             await projectManager.loadProjectsIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private var connectionStatusRow: some View {
+        if settings.showConnectionStatus {
+            let status = tracker.connectionStatus
+            HStack(alignment: .top, spacing: 6) {
+                Circle()
+                    .fill(AppColors.connection(status))
+                    .frame(width: 8, height: 8)
+                    .padding(.top, 3)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(status.label)
+                        .font(.caption.weight(.medium))
+                    if let detail = status.detail {
+                        Text(detail)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer()
+            }
         }
     }
 
