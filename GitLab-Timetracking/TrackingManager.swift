@@ -243,11 +243,14 @@ final class TrackingManager {
     /// issues with the "include away" option so that time is booked, not lost.
     func countAllUnresolvedAwayGaps() {
         guard var session = activeSession else { return }
+        var resolvedIDs: [UUID] = []
         for index in session.awayGaps.indices where session.awayGaps[index].resolution == .undecided {
             session.awayGaps[index].resolution = .counted
+            resolvedIDs.append(session.awayGaps[index].id)
         }
         activeSession = session
         persistActiveSession()
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: resolvedIDs)
     }
 
     func resolveAwayGap(id: UUID, as resolution: AwayGap.Resolution) {
@@ -256,6 +259,7 @@ final class TrackingManager {
         session.awayGaps[index].resolution = resolution
         activeSession = session
         persistActiveSession()
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: [id])
     }
 
     var isTracking: Bool {
@@ -405,6 +409,7 @@ final class TrackingManager {
         NotificationCoordinator.shared.clearCheckpointNotification()
 
         guard let session = activeSession else { return }
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: session.awayGaps.map(\.id))
         let totalMinutes = Self.bookableMinutes(session, at: Date())
         activeSession = nil
         sessionStore.clear()
@@ -433,6 +438,7 @@ final class TrackingManager {
         NotificationCoordinator.shared.clearCheckpointNotification()
 
         let ref = activeSession?.issue.references.short ?? ""
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: activeSession?.awayGaps.map(\.id) ?? [])
         activeSession = nil
         sessionStore.clear()
         infoMessage = "Discarded tracking for \(ref)."
@@ -446,6 +452,7 @@ final class TrackingManager {
     func clearIssues() {
         checkpointTask?.cancel()
         checkpointTask = nil
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: activeSession?.awayGaps.map(\.id) ?? [])
         issues = []
         issueStatuses = [:]
         issueParents = [:]

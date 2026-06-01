@@ -113,7 +113,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         content.userInfo = [Self.gapIDKey: gap.id.uuidString]
 
         let request = UNNotificationRequest(
-            identifier: "AWAY_\(gap.id.uuidString)",
+            identifier: Self.awayNotificationID(for: gap.id),
             content: content,
             trigger: nil
         )
@@ -121,6 +121,10 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         UNUserNotificationCenter.current().add(request)
         NSApp.requestUserAttention(.informationalRequest)
         playReminderSound(named: soundName)
+    }
+
+    private static func awayNotificationID(for gapID: UUID) -> String {
+        "AWAY_\(gapID.uuidString)"
     }
 
     func beginCheckpointReminderLoop(for issue: GitLabIssue, checkpointMinutes: Int, soundName: String, interval: TimeInterval = 180) {
@@ -147,6 +151,16 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         let center = UNUserNotificationCenter.current()
         center.removeDeliveredNotifications(withIdentifiers: [Self.notificationID])
         center.removePendingNotificationRequests(withIdentifiers: [Self.notificationID])
+    }
+
+    /// Removes the reconciliation prompts for the given away gaps so they don't
+    /// linger after the gaps are resolved or the session ends.
+    func clearAwayReconciliationNotifications(gapIDs: [UUID]) {
+        guard !gapIDs.isEmpty else { return }
+        let identifiers = gapIDs.map(Self.awayNotificationID(for:))
+        let center = UNUserNotificationCenter.current()
+        center.removeDeliveredNotifications(withIdentifiers: identifiers)
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
     }
 
     nonisolated func userNotificationCenter(
