@@ -20,17 +20,31 @@ struct AwayGap: Codable, Identifiable, Hashable {
     let start: Date
     var end: Date
     var resolution: Resolution
+    /// When `.counted`, how many of the gap's minutes to credit as work.
+    /// `nil` means credit the full span. Lets the user count only the part of
+    /// an away period they actually worked (e.g. 23 min of a 90 min gap that
+    /// also covered lunch).
+    var countedMinutes: Int?
 
-    init(id: UUID = UUID(), start: Date, end: Date, resolution: Resolution = .undecided) {
+    init(id: UUID = UUID(), start: Date, end: Date, resolution: Resolution = .undecided, countedMinutes: Int? = nil) {
         self.id = id
         self.start = start
         self.end = end
         self.resolution = resolution
+        self.countedMinutes = countedMinutes
     }
 
     /// Whole minutes spanned by the gap (shares the session min-1 clamp).
     var minutes: Int {
         max(1, Int(end.timeIntervalSince(start) / 60))
+    }
+
+    /// Minutes credited toward booked time given the current resolution.
+    var creditedMinutes: Int {
+        switch resolution {
+        case .counted: return min(countedMinutes ?? minutes, minutes)
+        case .undecided, .discarded: return 0
+        }
     }
 }
 

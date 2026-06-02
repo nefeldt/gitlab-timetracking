@@ -256,6 +256,48 @@ struct TrackingCalculationTests {
         #expect(TrackingManager.bookableMinutes(session, at: switchTime) == 60)
     }
 
+    // MARK: - Partial credit for away periods
+
+    @Test func away_partialCountCreditsOnlySpecifiedMinutes() {
+        // Worked away from the desk, then went to lunch — one long gap that
+        // mixes work and a break. Crediting only the worked minutes must not
+        // pull in the break (and must not lose the work).
+        let start = Date(timeIntervalSince1970: 0)
+        var session = makeSession(startedAt: start)
+        session = TrackingManager.beginAway(session, at: start.addingTimeInterval(20 * 60))
+        session = TrackingManager.endAway(session, at: start.addingTimeInterval(110 * 60))
+        #expect(session.awayGaps.count == 1)
+        #expect(session.awayGaps[0].minutes == 90)
+
+        // Credit only 23 of the 90 away minutes.
+        session.awayGaps[0].resolution = .counted
+        session.awayGaps[0].countedMinutes = 23
+
+        // 20 confirmed + open interval (110..115 = 5) + 23 credited = 48.
+        let stop = start.addingTimeInterval(115 * 60)
+        #expect(TrackingManager.bookableMinutes(session, at: stop) == 48)
+    }
+
+    @Test func away_creditedMinutesClampedToSpan() {
+        let start = Date(timeIntervalSince1970: 0)
+        let gap = AwayGap(start: start, end: start.addingTimeInterval(30 * 60), resolution: .counted, countedMinutes: 999)
+        #expect(gap.creditedMinutes == 30)
+    }
+
+    @Test func away_creditedMinutesZeroWhenNotCounted() {
+        let start = Date(timeIntervalSince1970: 0)
+        let undecided = AwayGap(start: start, end: start.addingTimeInterval(30 * 60))
+        let discarded = AwayGap(start: start, end: start.addingTimeInterval(30 * 60), resolution: .discarded)
+        #expect(undecided.creditedMinutes == 0)
+        #expect(discarded.creditedMinutes == 0)
+    }
+
+    @Test func away_fullCountWhenCountedMinutesNil() {
+        let start = Date(timeIntervalSince1970: 0)
+        let gap = AwayGap(start: start, end: start.addingTimeInterval(30 * 60), resolution: .counted)
+        #expect(gap.creditedMinutes == 30)
+    }
+
     // MARK: - Restore from persistence (downtime treated as an away gap)
 
     @Test func restore_downtimeBecomesUndecidedGap() {

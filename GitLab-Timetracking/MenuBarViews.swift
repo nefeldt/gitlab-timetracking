@@ -341,20 +341,12 @@ struct MenuBarContentView: View {
                     .foregroundStyle(AppColors.checkpointOrange)
 
                 ForEach(gaps) { gap in
-                    HStack(spacing: 8) {
-                        Text("\(awayGapRange(gap)) · \(tracker.formattedDuration(minutes: gap.minutes))")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Button("Count") {
-                            tracker.resolveAwayGap(id: gap.id, as: .counted)
-                        }
-                        .controlSize(.small)
-                        Button("Discard") {
-                            tracker.resolveAwayGap(id: gap.id, as: .discarded)
-                        }
-                        .controlSize(.small)
-                    }
+                    AwayGapRow(
+                        gap: gap,
+                        rangeText: awayGapRange(gap),
+                        onCount: { minutes in tracker.countAwayGap(id: gap.id, minutes: minutes) },
+                        onDiscard: { tracker.resolveAwayGap(id: gap.id, as: .discarded) }
+                    )
                 }
             }
             .padding(10)
@@ -377,6 +369,58 @@ struct MenuBarContentView: View {
     private func awayGapRange(_ gap: AwayGap) -> String {
         let formatter = Self.awayGapTimeFormatter
         return "\(formatter.string(from: gap.start))–\(formatter.string(from: gap.end))"
+    }
+
+    /// One unresolved away period, with an editable number of minutes to credit
+    /// (defaults to the full span) so a gap that mixed work and a break can be
+    /// counted partially.
+    private struct AwayGapRow: View {
+        let gap: AwayGap
+        let rangeText: String
+        let onCount: (Int) -> Void
+        let onDiscard: () -> Void
+
+        @State private var minutes: Int
+
+        init(gap: AwayGap, rangeText: String, onCount: @escaping (Int) -> Void, onDiscard: @escaping () -> Void) {
+            self.gap = gap
+            self.rangeText = rangeText
+            self.onCount = onCount
+            self.onDiscard = onDiscard
+            _minutes = State(initialValue: gap.minutes)
+        }
+
+        var body: some View {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("\(rangeText) · away \(gap.minutes)m")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    TextField("", value: $minutes, format: .number)
+                        .labelsHidden()
+                        .frame(width: 42)
+                        .multilineTextAlignment(.trailing)
+                        .textFieldStyle(.roundedBorder)
+                        .onChange(of: minutes) { _, newValue in
+                            let clamped = max(0, min(newValue, gap.minutes))
+                            if clamped != newValue { minutes = clamped }
+                        }
+                    Stepper("", value: $minutes, in: 0...gap.minutes)
+                        .labelsHidden()
+                    Text("min")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    Spacer()
+
+                    Button("Count") { onCount(minutes) }
+                        .controlSize(.small)
+                    Button("Discard") { onDiscard() }
+                        .controlSize(.small)
+                }
+            }
+        }
     }
 
     @ViewBuilder

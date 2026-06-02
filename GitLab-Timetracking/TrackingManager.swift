@@ -72,11 +72,9 @@ final class TrackingManager {
         return updated
     }
 
-    /// Minutes from away periods the user chose to count as work.
+    /// Minutes from away periods credited as work (full or partial).
     nonisolated static func countedGapMinutes(_ session: Session) -> Int {
-        session.awayGaps
-            .filter { $0.resolution == .counted }
-            .reduce(0) { $0 + $1.minutes }
+        session.awayGaps.reduce(0) { $0 + $1.creditedMinutes }
     }
 
     /// Minutes of the in-progress interval (zero while away).
@@ -276,6 +274,21 @@ final class TrackingManager {
         guard var session = activeSession,
               let index = session.awayGaps.firstIndex(where: { $0.id == id }) else { return }
         session.awayGaps[index].resolution = resolution
+        session.awayGaps[index].countedMinutes = nil
+        activeSession = session
+        persistActiveSession()
+        NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: [id])
+    }
+
+    /// Credits only `minutes` of an away gap as work (clamped to its span).
+    /// Zero counts as a discard. Lets the user keep the part they worked and
+    /// drop the rest (e.g. work away from the desk, then lunch, in one gap).
+    func countAwayGap(id: UUID, minutes: Int) {
+        guard var session = activeSession,
+              let index = session.awayGaps.firstIndex(where: { $0.id == id }) else { return }
+        let clamped = max(0, min(minutes, session.awayGaps[index].minutes))
+        session.awayGaps[index].resolution = clamped > 0 ? .counted : .discarded
+        session.awayGaps[index].countedMinutes = clamped > 0 ? clamped : nil
         activeSession = session
         persistActiveSession()
         NotificationCoordinator.shared.clearAwayReconciliationNotifications(gapIDs: [id])
