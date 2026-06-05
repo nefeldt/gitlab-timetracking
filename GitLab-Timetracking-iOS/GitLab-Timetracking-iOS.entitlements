@@ -8,11 +8,7 @@
 	<array>
 		<string>$(AppIdentifierPrefix)feldt.systems.gitlab-timetracking</string>
 	</array>
-	<key>com.apple.security.app-sandbox</key>
-	<true/>
-	<key>com.apple.security.network.client</key>
-	<true/>
-	<key>com.apple.security.network.server</key>
+	<key>com.apple.developer.carplay-driving-task</key>
 	<true/>
 </dict>
 </plist>

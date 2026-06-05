@@ -5,8 +5,10 @@
 
 import Foundation
 import UserNotifications
-import AppKit
 import os.log
+#if os(macOS)
+import AppKit
+#endif
 
 @MainActor
 final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate {
@@ -32,7 +34,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     var onCountAway: ((UUID) -> Void)?
     var onDiscardAway: ((UUID) -> Void)?
     private var reminderTask: Task<Void, Never>?
+#if os(macOS)
     private var alertSound: NSSound?
+#endif
 
     func configure() {
         let center = UNUserNotificationCenter.current()
@@ -96,7 +100,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         )
 
         UNUserNotificationCenter.current().add(request)
+#if os(macOS)
         NSApp.requestUserAttention(.criticalRequest)
+#endif
         playReminderSound(named: soundName)
     }
 
@@ -119,7 +125,9 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
         )
 
         UNUserNotificationCenter.current().add(request)
+#if os(macOS)
         NSApp.requestUserAttention(.informationalRequest)
+#endif
         playReminderSound(named: soundName)
     }
 
@@ -204,6 +212,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
     }
 
     private func playReminderSound(named soundName: String) {
+#if os(macOS)
         if let sound = NSSound(named: NSSound.Name(soundName)) {
             alertSound = sound
             sound.volume = 1.0
@@ -214,7 +223,7 @@ final class NotificationCoordinator: NSObject, UNUserNotificationCenterDelegate 
             }
             return
         }
-
         NSSound.beep()
+#endif
     }
 }

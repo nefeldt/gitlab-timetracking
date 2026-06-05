@@ -4,6 +4,8 @@
 //
 
 import Foundation
+
+#if os(macOS)
 import AppKit
 
 /// Reports when the machine becomes unavailable ("away") and available again
@@ -19,7 +21,7 @@ import AppKit
 /// Pure input-idle (no lock) is intentionally not watched yet; see the refactor
 /// plan, §4.2.
 @MainActor
-final class ActivityMonitor {
+final class ActivityMonitor: ActivityMonitoring {
     /// Called with the wall-clock time the machine became unavailable.
     var onAway: ((Date) -> Void)?
     /// Called with the wall-clock time the machine became available again.
@@ -105,3 +107,4 @@ final class ActivityMonitor {
         onReturn?(Date())
     }
 }
+#endif

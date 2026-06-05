@@ -4,6 +4,7 @@
 //
 
 import Foundation
+import ActivityKit
 
 @MainActor
 @Observable
@@ -123,8 +124,14 @@ final class TrackingManager {
     private let api = GitLabAPI()
     private let sessionStore = SessionStore()
     private let historyStore = BookingHistoryStore()
+    private let pendingCloud = PendingBookingsCloudStore()
+    private let issueCache = IssueCacheStore()
     private var checkpointTask: Task<Void, Never>?
-    private let activityMonitor = ActivityMonitor()
+#if os(macOS)
+    private let activityMonitor: any ActivityMonitoring = ActivityMonitor()
+#else
+    private let activityMonitor: any ActivityMonitoring = ActivityMonitorIOS()
+#endif
     private let networkMonitor = NetworkMonitor()
     private var retrySweepTask: Task<Void, Never>?
     private(set) var lastRefreshAt: Date?
@@ -141,7 +148,9 @@ final class TrackingManager {
     var isLoading = false
     var errorMessage: String?
     var infoMessage = "Configure GitLab to start."
-    var bookingHistory: [BookingHistoryEntry] = []
+    var bookingHistory: [BookingHistoryEntry] = [] {
+        didSet { syncPendingToCloud() }
+    }
     var isSyncingHistory = false
     var historySyncError: String?
     private(set) var lastHistorySyncAt: Date?
@@ -155,6 +164,8 @@ final class TrackingManager {
         self.authManager = authManager
         self.settings = authManager.settings
         self.bookingHistory = historyStore.load()
+        self.issues = issueCache.load()
+        mergePendingFromCloud()
 
         NotificationCoordinator.shared.onContinue = { [weak self] in
             self?.acknowledgeCheckIn()
@@ -389,6 +400,7 @@ final class TrackingManager {
             let fetchedIssues = try await api.fetchAssignedIssues(configuration: configuration)
             isGitLabReachable = true
             issues = fetchedIssues
+            issueCache.save(fetchedIssues)
             lastRefreshAt = Date()
             infoMessage = fetchedIssues.isEmpty ? "No currently assigned open issues." : "Assigned issues updated."
 
@@ -424,6 +436,9 @@ final class TrackingManager {
         settings.rememberUsedIssue(id: issue.id)
         scheduleCheckpoint()
         persistActiveSession()
+#if os(iOS)
+        startLiveActivity(issue: issue, at: now)
+#endif
 
         Task {
             await refreshActiveIssue()
@@ -459,9 +474,15 @@ final class TrackingManager {
 
         guard totalMinutes > 0 else {
             infoMessage = "Stopped tracking \(session.issue.references.short)."
+#if os(iOS)
+            Task { await endLiveActivity() }
+#endif
             return
         }
 
+#if os(iOS)
+        Task { await endLiveActivity() }
+#endif
         Task {
             await book(issue: session.issue, minutes: totalMinutes, followUp: "Booked \(DurationFormatter.format(minutes: totalMinutes)) to \(session.issue.references.short).")
         }
@@ -499,6 +520,7 @@ final class TrackingManager {
         issues = []
         issueStatuses = [:]
         issueParents = [:]
+        issueCache.clear()
         errorMessage = nil
         activeSession = nil
         sessionStore.clear()
@@ -634,6 +656,26 @@ final class TrackingManager {
 
     var pendingBookings: [BookingHistoryEntry] {
         bookingHistory.filter { $0.status == .pending }
+    }
+
+    private func syncPendingToCloud() {
+        let pending = pendingBookings
+        if pending.isEmpty {
+            pendingCloud.clear()
+        } else {
+            pendingCloud.save(pending)
+        }
+    }
+
+    /// Merges any pending bookings stored in iCloud (e.g. from another device or
+    /// after a reinstall) into the local history so they can be retried.
+    private func mergePendingFromCloud() {
+        let cloudEntries = pendingCloud.load()
+        guard !cloudEntries.isEmpty else { return }
+        let localIDs = Set(bookingHistory.map(\.id))
+        let newEntries = cloudEntries.filter { !localIDs.contains($0.id) }
+        guard !newEntries.isEmpty else { return }
+        bookingHistory = historyStore.appendAll(newEntries)
     }
 
     @discardableResult
@@ -906,4 +948,35 @@ final class TrackingManager {
             )
         )
     }
+
+#if os(iOS)
+    // MARK: - Live Activity
+
+    @ObservationIgnored private var liveActivity: Activity<TrackingActivityAttributes>?
+
+    private func startLiveActivity(issue: GitLabIssue, at date: Date) {
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        Task { await endLiveActivity() }
+        let attributes = TrackingActivityAttributes(issueID: issue.id)
+        let state = TrackingActivityAttributes.ContentState(
+            issueReference: issue.references.short,
+            issueTitle: issue.title,
+            startDate: date
+        )
+        liveActivity = try? Activity.request(
+            attributes: attributes,
+            content: ActivityContent(state: state, staleDate: nil),
+            pushType: nil
+        )
+    }
+
+    private func endLiveActivity() async {
+        guard let activity = liveActivity else { return }
+        await activity.end(
+            ActivityContent(state: activity.content.state, staleDate: nil),
+            dismissalPolicy: .immediate
+        )
+        liveActivity = nil
+    }
+#endif
 }

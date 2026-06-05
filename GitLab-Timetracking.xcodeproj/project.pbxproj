@@ -6,6 +6,10 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		BBWA11BBWA11BBWA11BBWA11 /* GitLab Timetracking Widget.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = BBWA01BBWA01BBWA01BBWA01 /* GitLab Timetracking Widget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		16DF0FA52F8C4A00008CA08E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -14,22 +18,94 @@
 			remoteGlobalIDString = 16DF0F7E2F7AE8F5008CA08E;
 			remoteInfo = "GitLab Timetracking";
 		};
+		BBWA12BBWA12BBWA12BBWA12 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 16DF0F772F7AE8F5008CA08E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = BBWA06BBWA06BBWA06BBWA06;
+			remoteInfo = "GitLab Timetracking Widget";
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		BBWA10BBWA10BBWA10BBWA10 /* Embed App Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				BBWA11BBWA11BBWA11BBWA11 /* GitLab Timetracking Widget.appex in Embed App Extensions */,
+			);
+			name = "Embed App Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		16DF0F7F2F7AE8F5008CA08E /* GitLab Timetracking.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GitLab Timetracking.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		16DF0FA02F8C4A00008CA08E /* GitLab Timetracking Tests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "GitLab Timetracking Tests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BB1001BB1001BB1001BB1001 /* GitLab Timetracking iOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "GitLab Timetracking iOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		BBWA01BBWA01BBWA01BBWA01 /* GitLab Timetracking Widget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "GitLab Timetracking Widget.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		BBAA0ABBAA0ABBAA0ABBAA0A /* Exceptions for "GitLab-Timetracking" folder in "GitLab Timetracking iOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				ActivityMonitor.swift,
+				Assets.xcassets,
+				MenuBarViews.swift,
+				My_GitLab_TimetrackingApp.swift,
+				OAuthCallbackServer.swift,
+				SettingsView.swift,
+				"Timetracker Logo.icon",
+			);
+			target = BB6006BB6006BB6006BB6006 /* GitLab Timetracking iOS */;
+		};
+		BBC10001BBC10001BBC10001 /* Exceptions for "GitLab-Timetracking-iOS" folder in "GitLab Timetracking iOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BB6006BB6006BB6006BB6006 /* GitLab Timetracking iOS */;
+		};
+		BBWC01BBWC01BBWC01BBWC01 /* Exceptions for "GitLab-Timetracking-iOS-Widget" folder in "GitLab Timetracking Widget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = BBWA06BBWA06BBWA06BBWA06 /* GitLab Timetracking Widget */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		16DF0F812F7AE8F5008CA08E /* GitLab-Timetracking */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BBAA0ABBAA0ABBAA0ABBAA0A /* Exceptions for "GitLab-Timetracking" folder in "GitLab Timetracking iOS" target */,
+			);
 			path = "GitLab-Timetracking";
 			sourceTree = "<group>";
 		};
 		16DF0FA12F8C4A00008CA08E /* GitLab-Timetracking-Tests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "GitLab-Timetracking-Tests";
+			sourceTree = "<group>";
+		};
+		BB2002BB2002BB2002BB2002 /* GitLab-Timetracking-iOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BBC10001BBC10001BBC10001 /* Exceptions for "GitLab-Timetracking-iOS" folder in "GitLab Timetracking iOS" target */,
+			);
+			path = "GitLab-Timetracking-iOS";
+			sourceTree = "<group>";
+		};
+		BBWA02BBWA02BBWA02BBWA02 /* GitLab-Timetracking-iOS-Widget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				BBWC01BBWC01BBWC01BBWC01 /* Exceptions for "GitLab-Timetracking-iOS-Widget" folder in "GitLab Timetracking Widget" target */,
+			);
+			path = "GitLab-Timetracking-iOS-Widget";
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -49,6 +125,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB4004BB4004BB4004BB4004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBWA04BBWA04BBWA04BBWA04 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -56,6 +146,8 @@
 			isa = PBXGroup;
 			children = (
 				16DF0F812F7AE8F5008CA08E /* GitLab-Timetracking */,
+				BB2002BB2002BB2002BB2002 /* GitLab-Timetracking-iOS */,
+				BBWA02BBWA02BBWA02BBWA02 /* GitLab-Timetracking-iOS-Widget */,
 				16DF0FA12F8C4A00008CA08E /* GitLab-Timetracking-Tests */,
 				16DF0F802F7AE8F5008CA08E /* Products */,
 			);
@@ -66,6 +158,8 @@
 			children = (
 				16DF0F7F2F7AE8F5008CA08E /* GitLab Timetracking.app */,
 				16DF0FA02F8C4A00008CA08E /* GitLab Timetracking Tests.xctest */,
+				BB1001BB1001BB1001BB1001 /* GitLab Timetracking iOS.app */,
+				BBWA01BBWA01BBWA01BBWA01 /* GitLab Timetracking Widget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,6 +212,53 @@
 			productReference = 16DF0FA02F8C4A00008CA08E /* GitLab Timetracking Tests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		BB6006BB6006BB6006BB6006 /* GitLab Timetracking iOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BB9009BB9009BB9009BB9009 /* Build configuration list for PBXNativeTarget "GitLab Timetracking iOS" */;
+			buildPhases = (
+				BB3003BB3003BB3003BB3003 /* Sources */,
+				BB4004BB4004BB4004BB4004 /* Frameworks */,
+				BB5005BB5005BB5005BB5005 /* Resources */,
+				BBWA10BBWA10BBWA10BBWA10 /* Embed App Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				BBWA13BBWA13BBWA13BBWA13 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				16DF0F812F7AE8F5008CA08E /* GitLab-Timetracking */,
+				BB2002BB2002BB2002BB2002 /* GitLab-Timetracking-iOS */,
+			);
+			name = "GitLab Timetracking iOS";
+			packageProductDependencies = (
+			);
+			productName = "GitLab Timetracking iOS";
+			productReference = BB1001BB1001BB1001BB1001 /* GitLab Timetracking iOS.app */;
+			productType = "com.apple.product-type.application";
+		};
+		BBWA06BBWA06BBWA06BBWA06 /* GitLab Timetracking Widget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 2E93834A2FD382FE00EC5218 /* Build configuration list for PBXNativeTarget "GitLab Timetracking Widget" */;
+			buildPhases = (
+				BBWA03BBWA03BBWA03BBWA03 /* Sources */,
+				BBWA04BBWA04BBWA04BBWA04 /* Frameworks */,
+				BBWA05BBWA05BBWA05BBWA05 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				BBWA02BBWA02BBWA02BBWA02 /* GitLab-Timetracking-iOS-Widget */,
+			);
+			name = "GitLab Timetracking Widget";
+			packageProductDependencies = (
+			);
+			productName = "GitLab Timetracking Widget";
+			productReference = BBWA01BBWA01BBWA01BBWA01 /* GitLab Timetracking Widget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -134,6 +275,12 @@
 					16DF0FA72F8C4A00008CA08E = {
 						CreatedOnToolsVersion = 26.3;
 						TestTargetID = 16DF0F7E2F7AE8F5008CA08E;
+					};
+					BB6006BB6006BB6006BB6006 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					BBWA06BBWA06BBWA06BBWA06 = {
+						CreatedOnToolsVersion = 26.3;
 					};
 				};
 			};
@@ -152,6 +299,8 @@
 			projectRoot = "";
 			targets = (
 				16DF0F7E2F7AE8F5008CA08E /* GitLab Timetracking */,
+				BB6006BB6006BB6006BB6006 /* GitLab Timetracking iOS */,
+				BBWA06BBWA06BBWA06BBWA06 /* GitLab Timetracking Widget */,
 				16DF0FA72F8C4A00008CA08E /* GitLab Timetracking Tests */,
 			);
 		};
@@ -166,6 +315,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		16DF0FA42F8C4A00008CA08E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BB5005BB5005BB5005BB5005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBWA05BBWA05BBWA05BBWA05 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,6 +352,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		BB3003BB3003BB3003BB3003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBWA03BBWA03BBWA03BBWA03 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -196,6 +373,11 @@
 			isa = PBXTargetDependency;
 			target = 16DF0F7E2F7AE8F5008CA08E /* GitLab Timetracking */;
 			targetProxy = 16DF0FA52F8C4A00008CA08E /* PBXContainerItemProxy */;
+		};
+		BBWA13BBWA13BBWA13BBWA13 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = BBWA06BBWA06BBWA06BBWA06 /* GitLab Timetracking Widget */;
+			targetProxy = BBWA12BBWA12BBWA12BBWA12 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -330,7 +512,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
-				DEVELOPMENT_TEAM = DHWAVSUCJL;
+				DEVELOPMENT_TEAM = 793444RXGC;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
@@ -357,7 +539,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.0.14;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.tappe-it.gitlab-timetracking";
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking";
 				PRODUCT_NAME = "${TARGET_NAME}";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
@@ -380,7 +562,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 10;
-				DEVELOPMENT_TEAM = DHWAVSUCJL;
+				DEVELOPMENT_TEAM = 793444RXGC;
 				ENABLE_APP_SANDBOX = YES;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_INCOMING_NETWORK_CONNECTIONS = YES;
@@ -407,7 +589,7 @@
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.0.14;
-				PRODUCT_BUNDLE_IDENTIFIER = "de.tappe-it.gitlab-timetracking";
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking";
 				PRODUCT_NAME = "${TARGET_NAME}";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				REGISTER_APP_GROUPS = YES;
@@ -426,7 +608,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = DHWAVSUCJL;
+				DEVELOPMENT_TEAM = 793444RXGC;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "de.tappe-it.gitlab-timetracking.tests";
@@ -445,7 +627,7 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = DHWAVSUCJL;
+				DEVELOPMENT_TEAM = 793444RXGC;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "de.tappe-it.gitlab-timetracking.tests";
@@ -455,6 +637,152 @@
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/GitLab Timetracking.app/Contents/MacOS/GitLab Timetracking";
+			};
+			name = Release;
+		};
+		2E93834B2FD382FE00EC5218 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 793444RXGC;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "GitLab-Timetracking-iOS-Widget/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking.ios.widgets";
+				PRODUCT_NAME = "GitLab Timetracking Widget";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		2E93834C2FD382FE00EC5218 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 793444RXGC;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "GitLab-Timetracking-iOS-Widget/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking.ios.widgets";
+				PRODUCT_NAME = "GitLab Timetracking Widget";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		BB7007BB7007BB7007BB7007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Timetracker Logo";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "GitLab-Timetracking-iOS/GitLab-Timetracking-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = 793444RXGC;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "GitLab-Timetracking-iOS/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking.ios";
+				PRODUCT_NAME = "${TARGET_NAME}";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		BB8008BB8008BB8008BB8008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = "Timetracker Logo";
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "GitLab-Timetracking-iOS/GitLab-Timetracking-iOS.entitlements";
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 793444RXGC;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = "GitLab-Timetracking-iOS/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.0.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				PRODUCT_BUNDLE_IDENTIFIER = "feldt.systems.gitlab-timetracking.ios";
+				PRODUCT_NAME = "${TARGET_NAME}";
+				SDKROOT = iphoneos;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -484,6 +812,24 @@
 			buildConfigurations = (
 				16DF0FA82F8C4A00008CA08E /* Debug */,
 				16DF0FA92F8C4A00008CA08E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		2E93834A2FD382FE00EC5218 /* Build configuration list for PBXNativeTarget "GitLab Timetracking Widget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				2E93834B2FD382FE00EC5218 /* Debug */,
+				2E93834C2FD382FE00EC5218 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BB9009BB9009BB9009BB9009 /* Build configuration list for PBXNativeTarget "GitLab Timetracking iOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BB7007BB7007BB7007BB7007 /* Debug */,
+				BB8008BB8008BB8008BB8008 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -4,8 +4,13 @@
 //
 
 import Foundation
-import AppKit
 import CryptoKit
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
+import UIKit
+import AuthenticationServices
+#endif
 
 struct GitLabOAuthToken: Codable {
     let accessToken: String
@@ -64,9 +69,14 @@ enum GitLabAuthError: LocalizedError {
 
 @MainActor
 @Observable
-final class GitLabAuthManager {
+final class GitLabAuthManager: NSObject {
+#if os(macOS)
     nonisolated static let redirectURI = URL(string: "http://127.0.0.1:45873/oauth/callback")!
     nonisolated static let redirectPort: UInt16 = 45873
+#else
+    nonisolated static let redirectURI = URL(string: "gitlab-timetracking://oauth/callback")!
+    private var webAuthSession: ASWebAuthenticationSession?
+#endif
 
     private(set) var currentUser: GitLabUser?
     private(set) var isAuthenticating = false
@@ -81,6 +91,7 @@ final class GitLabAuthManager {
 
     init(settings: AppSettings) {
         self.settings = settings
+        super.init()
         token = loadToken()
 
         if token != nil {
@@ -136,6 +147,7 @@ final class GitLabAuthManager {
                 codeChallenge: codeChallenge
             )
 
+#if os(macOS)
             let callbackServer = OAuthCallbackServer(port: Self.redirectPort)
             let callbackTask = Task {
                 try await callbackServer.waitForCallback()
@@ -151,6 +163,33 @@ final class GitLabAuthManager {
             } onCancel: {
                 callbackTask.cancel()
             }
+#else
+            let callbackURL: URL = try await withCheckedThrowingContinuation { continuation in
+                let session = ASWebAuthenticationSession(
+                    url: authURL,
+                    callbackURLScheme: "gitlab-timetracking"
+                ) { [weak self] url, error in
+                    self?.webAuthSession = nil
+                    if let error {
+                        let asError = error as? ASWebAuthenticationSessionError
+                        if asError?.code == .canceledLogin {
+                            continuation.resume(throwing: GitLabAuthError.cancelled)
+                        } else {
+                            continuation.resume(throwing: error)
+                        }
+                        return
+                    }
+                    guard let url else {
+                        continuation.resume(throwing: GitLabAuthError.missingAuthorizationCode)
+                        return
+                    }
+                    continuation.resume(returning: url)
+                }
+                session.presentationContextProvider = self
+                webAuthSession = session
+                session.start()
+            }
+#endif
 
             let queryItems = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems ?? []
 
@@ -185,6 +224,15 @@ final class GitLabAuthManager {
             authError = error.localizedDescription
         }
     }
+
+#if os(iOS)
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow) ?? UIWindow()
+    }
+#endif
 
     private func baseURLValidationError(_ url: URL, rawInput: String) -> GitLabAuthError? {
         let scheme = url.scheme?.lowercased()
@@ -239,10 +287,14 @@ final class GitLabAuthManager {
             return token
         }
 
-        let refreshed = try await refreshToken(configuration: configuration, refreshToken: token.refreshToken)
-        try saveToken(refreshed)
-        self.token = refreshed
-        return refreshed
+        // If refresh fails (e.g. offline), fall back to the existing token and let
+        // the API call decide whether it's still accepted rather than blocking the user.
+        if let refreshed = try? await refreshToken(configuration: configuration, refreshToken: token.refreshToken) {
+            try? saveToken(refreshed)
+            self.token = refreshed
+            return refreshed
+        }
+        return token
     }
 
     private func makeAuthorizationURL(
@@ -388,3 +440,7 @@ final class GitLabAuthManager {
         value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed.subtracting(CharacterSet(charactersIn: "+&="))) ?? value
     }
 }
+
+#if os(iOS)
+extension GitLabAuthManager: ASWebAuthenticationPresentationContextProviding {}
+#endif

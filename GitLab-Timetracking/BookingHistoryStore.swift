@@ -180,6 +180,14 @@ struct BookingHistoryStore {
         return entries
     }
 
+    func appendAll(_ newEntries: [BookingHistoryEntry]) -> [BookingHistoryEntry] {
+        var entries = load()
+        let existingIDs = Set(entries.map(\.id))
+        entries.append(contentsOf: newEntries.filter { !existingIDs.contains($0.id) })
+        save(entries)
+        return entries
+    }
+
     func update(_ entry: BookingHistoryEntry) -> [BookingHistoryEntry] {
         var entries = load()
         if let index = entries.firstIndex(where: { $0.id == entry.id }) {

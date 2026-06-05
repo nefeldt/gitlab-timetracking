@@ -8,12 +8,15 @@ import Security
 
 struct KeychainStore {
     private let service = "de.leontappe.My-GitLab-Timetracking.gitlab-oauth"
+    private let accessGroup = "793444RXGC.feldt.systems.gitlab-timetracking"
 
     func load(account: String) -> Data? {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
             kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!,
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ]
@@ -32,11 +35,15 @@ struct KeychainStore {
         let baseQuery: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!
         ]
 
         let update: [String: Any] = [
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock
         ]
 
         let updateStatus = SecItemUpdate(baseQuery as CFDictionary, update as CFDictionary)
@@ -44,8 +51,15 @@ struct KeychainStore {
             return
         }
 
-        var addQuery = baseQuery
-        addQuery[kSecValueData as String] = data
+        let addQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
+            kSecValueData as String: data
+        ]
 
         let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
         guard addStatus == errSecSuccess else {
@@ -57,7 +71,9 @@ struct KeychainStore {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
-            kSecAttrAccount as String: account
+            kSecAttrAccount as String: account,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!
         ]
 
         SecItemDelete(query as CFDictionary)
@@ -66,7 +82,9 @@ struct KeychainStore {
     func deleteAll() {
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service
+            kSecAttrService as String: service,
+            kSecAttrAccessGroup as String: accessGroup,
+            kSecAttrSynchronizable as String: kCFBooleanTrue!
         ]
 
         SecItemDelete(query as CFDictionary)
